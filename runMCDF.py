@@ -48,7 +48,6 @@ directory_name = ''
 
 # --------------------------------------------------------------- #
 # Variables to automatically determine the electron configuration #
-#     More data for this algorithm is in Conf.csv and Fir.csv     #
 # --------------------------------------------------------------- #
 
 # Shells for the automatic determination of electron configuration
@@ -66,7 +65,8 @@ nb_lines_fir = 0
 final_configuration = []
 # Determined configuration string
 configuration_string = ''
-
+# File for the generated electron configurations
+file_automatic_configurations = ''
 
 # ------------------------------------ #
 # Variables for input and output files #
@@ -1835,40 +1835,39 @@ def writeResultsShakeup(update=False):
                     stateResults.write("All Shake-up states have converged\n")
 
 
-
-def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
-    global calculated1holeStates, radiative_by_hand
-    
+def calculateStates(shell_labels, sub_dir, electron_configurations, electron_number, calculatedStates, \
+                    file_cycle_log, log_header, resultDump_mod, writeResults, by_hand, \
+                    shakeup_configs = False, starting_cycle = -1, starting_state = [(0, 0, 0)]):
     jj_vals = []
     
-    parallel_1hole_paths = []
+    parallel_paths = []
     
     
     # If no starting cycle has been specified
     if starting_cycle == -1:
         # -------------- DETERMINE 2J MAX VALUE -------------- #
         
-        for i in range(len(shell_array)):
-            currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i]
-            currFileName = shell_array[i]
+        for i in range(len(shell_labels)):
+            currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i]
+            currFileName = shell_labels[i]
             
-            configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_1hole[i], "100" if int(nelectrons) % 2 == 0 else "101", "100")
+            configureStateInputFile(f05Template_nuc, currDir, currFileName, electron_configurations[i], "100" if electron_number % 2 == 0 else "101", "100", [], electron_number)
             
-            parallel_1hole_paths.append(currDir + "/" + exe_file)
+            parallel_paths.append(currDir + "/" + exe_file)
             
         
         # Execute parallel batch job
-        executeBatchStateCalculation(parallel_1hole_paths)
+        executeBatchStateCalculation(parallel_paths)
         
         
         
         # -------------- DETERMINE EIGENVALUE MAX VALUE -------------- #
         
-        parallel_1hole_paths = []
+        parallel_paths = []
         
-        for i in range(len(shell_array)):
-            currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i]
-            currFileName = shell_array[i]
+        for i in range(len(shell_labels)):
+            currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i]
+            currFileName = shell_labels[i]
             
             maxJJi = 0
             
@@ -1878,27 +1877,32 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                         maxJJi = int(line.split("!!!!! For state # 1 and configuration   1 highest 2Jz possible value is")[1].split()[0].strip())
             
             for jj in range(0 if maxJJi % 2 == 0 else 1, maxJJi + 1, 2):
+                if shakeup_configs:
+                    # Filter for monopolar excitations
+                    if not checkMonopolar(i, jj):
+                        continue
+                
                 jj_vals.append((i, jj))
                 
-                currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj)
-                currFileName = shell_array[i] + "_" + str(jj)
+                currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj)
+                currFileName = shell_labels[i] + "_" + str(jj)
                 
-                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_1hole[i], jj, "100")
+                configureStateInputFile(f05Template_nuc, currDir, currFileName, electron_configurations[i], jj, "100", [], electron_number)
             
-                parallel_1hole_paths.append(currDir + "/" + exe_file)
+                parallel_paths.append(currDir + "/" + exe_file)
         
         # Execute parallel batch job
-        executeBatchStateCalculation(parallel_1hole_paths)
+        executeBatchStateCalculation(parallel_paths)
     
     
         
         # -------------- FULL STATE CALCULATION -------------- #
         
-        parallel_1hole_paths = []
+        parallel_paths = []
         
         for i, jj in jj_vals:
-            currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj)
-            currFileName = shell_array[i] + "_" + str(jj)
+            currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj)
+            currFileName = shell_labels[i] + "_" + str(jj)
             
             maxEigvi = 0
             
@@ -1909,22 +1913,22 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             for eigv in range(1, maxEigvi + 1):
                 
-                calculated1holeStates.append([(i, jj, eigv)])
+                calculatedStates.append([(i, jj, eigv)])
                 
-                currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+                currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                currFileName = shell_labels[i] + "_" + str(jj) + "_" + str(eigv)
                 
-                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv)
+                configureStateInputFile(f05Template_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, [], electron_number)
                 
-                parallel_1hole_paths.append(currDir + "/" + exe_file)
+                parallel_paths.append(currDir + "/" + exe_file)
         
         
-        with open(file_cycle_log_1hole, "a") as log_1hole:
-            log_1hole.write("1 hole states discovery done.\nList of all discovered states:\n")
-            for state in calculated1holeStates:
-                log_1hole.write(', '.join([str(qn) for qn in state[0]]) + "\n")
+        with open(file_cycle_log, "a") as log:
+            log.write(log_header)
+            for state in calculatedStates:
+                log.write(', '.join([str(qn) for qn in state[0]]) + "\n")
             
-            log_1hole.write("ListEnd\n")
+            log.write("ListEnd\n")
     
     
     # Variables to control if the last calculated state has been reached in each cycle
@@ -1941,14 +1945,14 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         # If the starting cycle is 1 we search for the starting state in the list
         if starting_cycle == 1:
             counter = 0
-            for state in calculated1holeStates:
+            for state in calculatedStates:
                 if found_cycle1 or starting_state == [(0, 0, 0)]:
                     i, jj, eigv = state[0]
                     
-                    currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+                    currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_labels[i] + "_" + str(jj) + "_" + str(eigv)
                     
-                    parallel_1hole_paths.append(currDir + "/" + exe_file)
+                    parallel_paths.append(currDir + "/" + exe_file)
                 
                 counter += 1
                 
@@ -1959,12 +1963,12 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 
         
         # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_1hole_paths, file_cycle_log_1hole, calculated1holeStates[start_counter:], "First Cycle Last Calculated:\n")
+        executeBatchStateCalculation(parallel_paths, file_cycle_log, calculatedStates[start_counter:], "First Cycle Last Calculated:\n")
     
     
     
     failed_first_cycle = []
-    parallel_1hole_failed = []
+    parallel_failed = []
     
     # -------------- FIRST CYCLE FOR CONVERGENCE CHECK -------------- #
     
@@ -1972,27 +1976,27 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     if starting_cycle <= 1:
         # Even if the starting cycle is 1 it means that the calculation has finished in the last executeBatchStateCalculation
         counter = 0
-        for state in calculated1holeStates:
+        for state in calculatedStates:
             i, jj, eigv = state[0]
             
-            currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+            currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_labels[i] + "_" + str(jj) + "_" + str(eigv)
             
             converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
             
-            calculated1holeStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+            calculatedStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
             
             if not converged:
                 
-                configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv)
+                configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, [], electron_number)
             
-                parallel_1hole_failed.append(currDir + "/" + exe_file)
+                parallel_failed.append(currDir + "/" + exe_file)
                 failed_first_cycle.append(counter)
             else:
                 if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv)
+                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, [], electron_number)
             
-                    parallel_1hole_failed.append(currDir + "/" + exe_file)
+                    parallel_failed.append(currDir + "/" + exe_file)
                     failed_first_cycle.append(counter)
             
             counter += 1
@@ -2000,9 +2004,9 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         # -------------- PRINT FIRST CYCLE RESULTS -------------- #
         
         with open(file_results, "a") as resultDump:
-            resultDump.write("First Cycle 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculated1holeStates:
-                resultDump.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+            resultDump.write("First Cycle " + resultDump_mod + " states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+            for state in calculatedStates:
+                resultDump.write(shell_labels[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
         
     
     
@@ -2015,28 +2019,28 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         # If the starting cycle is 2 we search for the starting state in the list and fill in the failed_first_cycle list
         if starting_cycle == 2:
             counter = 0
-            for state in calculated1holeStates:
+            for state in calculatedStates:
                 if found_cycle2 or starting_state == [(0, 0, 0)]:
                     i, jj, eigv = state[0]
                     
-                    currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+                    currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_labels[i] + "_" + str(jj) + "_" + str(eigv)
                     
                     converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
                     
-                    calculated1holeStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                    calculatedStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
                     
                     if not converged:
                         # Only add this state to the calculation if we reached the starting state
                         if found_cycle2 or starting_state == [(0, 0, 0)]:
-                            parallel_1hole_failed.append(currDir + "/" + exe_file)
+                            parallel_failed.append(currDir + "/" + exe_file)
                         
                         failed_first_cycle.append(counter)
                     else:
                         if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                             # Only add this state to the calculation if we reached the starting state
                             if found_cycle2 or starting_state == [(0, 0, 0)]:
-                                parallel_1hole_failed.append(currDir + "/" + exe_file)
+                                parallel_failed.append(currDir + "/" + exe_file)
                             
                             failed_first_cycle.append(counter)
                 
@@ -2048,16 +2052,16 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                     start_counter = counter
                 
         
-        if len(parallel_1hole_failed) == 0:
-            writeResults1hole()
+        if len(parallel_failed) == 0:
+            writeResults()
             return
         
         # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_1hole_failed, file_cycle_log_1hole, calculated1holeStates[start_counter:], "Second Cycle Last Calculated:\n")
+        executeBatchStateCalculation(parallel_failed, file_cycle_log, calculatedStates[start_counter:], "Second Cycle Last Calculated:\n")
     
     
     failed_second_cycle = []
-    parallel_1hole_failed = []
+    parallel_failed = []
     
     
     # -------------- SECOND CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
@@ -2067,30 +2071,30 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         # Even if the starting cycle is 2 it means that the calculation has finished in the last executeBatchStateCalculation
         # After having filled the failed_first_cycle list we can continue the calculation
         for counter in failed_first_cycle:
-            i, jj, eigv = calculated1holeStates[counter][0]
+            i, jj, eigv = calculatedStates[counter][0]
             
-            currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+            currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_labels[i] + "_" + str(jj) + "_" + str(eigv)
             
             converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
             
             failed_orbs = [failed_orbital.strip() + "  1 5 0 1 :"]
             
-            calculated1holeStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
+            calculatedStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
             
             if not converged:
                 if failed_orbital != '':
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
-                    parallel_1hole_failed.append(currDir + "/" + exe_file)
+                    parallel_failed.append(currDir + "/" + exe_file)
                 
                 failed_second_cycle.append(counter)
             else:
                 if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     if failed_orbital != '':
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
-                        parallel_1hole_failed.append(currDir + "/" + exe_file)
+                        parallel_failed.append(currDir + "/" + exe_file)
                     
                     failed_second_cycle.append(counter)
             
@@ -2098,9 +2102,9 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         # -------------- PRINT SECOND CYCLE RESULTS -------------- #
         
         with open(file_results, "a") as resultDump:
-            resultDump.write("Second Cycle 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculated1holeStates:
-                resultDump.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+            resultDump.write("Second Cycle " + resultDump_mod + " states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+            for state in calculatedStates:
+                resultDump.write(shell_labels[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
     
     
     # If no starting cycle has been defined or the starting cycle is 1, 2 or 3
@@ -2111,27 +2115,27 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         # If the starting cycle is 3 we search for the starting state in the list and fill in the failed_second_cycle list
         if starting_cycle == 3:
             counter = 0
-            for state in calculated1holeStates:
+            for state in calculatedStates:
                 i, jj, eigv = state[0]
                 
-                currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+                currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                currFileName = shell_labels[i] + "_" + str(jj) + "_" + str(eigv)
                 
                 converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
                 
-                calculated1holeStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                calculatedStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
                 
                 if not converged:
                     # Only add this state to the calculation if we reached the starting state
                     if found_cycle3 or starting_state == [(0, 0, 0)]:
-                        parallel_1hole_failed.append(currDir + "/" + exe_file)
+                        parallel_failed.append(currDir + "/" + exe_file)
                     
                     failed_second_cycle.append(counter)
                 else:
                     if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                         # Only add this state to the calculation if we reached the starting state
                         if found_cycle3 or starting_state == [(0, 0, 0)]:
-                            parallel_1hole_failed.append(currDir + "/" + exe_file)
+                            parallel_failed.append(currDir + "/" + exe_file)
                         
                         failed_second_cycle.append(counter)
                 
@@ -2142,16 +2146,16 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                     start_counter = counter
                 
         
-        if len(parallel_1hole_failed) == 0:
-            writeResults1hole()
+        if len(parallel_failed) == 0:
+            writeResults()
             return
         
         # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_1hole_failed, file_cycle_log_1hole, calculated1holeStates[start_counter:], "Third Cycle Last Calculated:\n")
+        executeBatchStateCalculation(parallel_failed, file_cycle_log, calculatedStates[start_counter:], "Third Cycle Last Calculated:\n")
     
     
     failed_third_cycle = []
-    parallel_1hole_failed = []
+    parallel_failed = []
     
     
     # -------------- THIRD CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
@@ -2161,14 +2165,14 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
         # Even if the starting cycle is 3 it means that the calculation has finished in the last executeBatchStateCalculation
         # After having filled the failed_second_cycle list we can continue the calculation
         for counter in failed_second_cycle:
-            i, jj, eigv = calculated1holeStates[counter][0]
+            i, jj, eigv = calculatedStates[counter][0]
             
-            currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+            currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_labels[i] + "_" + str(jj) + "_" + str(eigv)
             
             converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
             
-            failed_orbs = calculated1holeStates[counter][1][6]
+            failed_orbs = calculatedStates[counter][1][6]
             
             if failed_orbital != '':
                 failed_orbs.append("    " + failed_orbital.strip() + "  1 5 0 1 :")
@@ -2176,41 +2180,41 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
             
             if not converged:
                 if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
-                    parallel_1hole_failed.append(currDir + "/" + exe_file)
+                    parallel_failed.append(currDir + "/" + exe_file)
                 elif len(failed_orbs) == 2:
                     del failed_orbs[0]
                     
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
-                    parallel_1hole_failed.append(currDir + "/" + exe_file)
+                    parallel_failed.append(currDir + "/" + exe_file)
                 
                 failed_third_cycle.append(counter)
             else:
                 if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
-                        parallel_1hole_failed.append(currDir + "/" + exe_file)
+                        parallel_failed.append(currDir + "/" + exe_file)
                     elif len(failed_orbs) == 2:
                         del failed_orbs[0]
                         
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_1hole[i], jj, eigv, failed_orbs)
+                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
-                        parallel_1hole_failed.append(currDir + "/" + exe_file)
+                        parallel_failed.append(currDir + "/" + exe_file)
                 
                 failed_third_cycle.append(counter)
             
-            calculated1holeStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
+            calculatedStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
             
         
         # -------------- PRINT THIRD CYCLE RESULTS -------------- #
         
         with open(file_results, "a") as resultDump:
-            resultDump.write("Third Cycle 1 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculated1holeStates:
-                resultDump.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
+            resultDump.write("Third Cycle " + resultDump_mod + " states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
+            for state in calculatedStates:
+                resultDump.write(shell_labels[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
     
     
     # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
@@ -2220,27 +2224,27 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
     # If the starting cycle is 4 we search for the starting state in the list and fill in the failed_third_cycle list
     if starting_cycle == 4:
         counter = 0
-        for state in calculated1holeStates:
+        for state in calculatedStates:
             i, jj, eigv = state[0]
             
-            currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+            currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+            currFileName = shell_labels[i] + "_" + str(jj) + "_" + str(eigv)
             
             converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
             
-            calculated1holeStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+            calculatedStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
             
             if not converged:
                 # Only add this state to the calculation if we reached the starting state
                 if found_cycle4 or starting_state == [(0, 0, 0)]:
-                    parallel_1hole_failed.append(currDir + "/" + exe_file)
+                    parallel_failed.append(currDir + "/" + exe_file)
                 
                 failed_third_cycle.append(counter)
             else:
                 if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     # Only add this state to the calculation if we reached the starting state
                     if found_cycle4 or starting_state == [(0, 0, 0)]:
-                        parallel_1hole_failed.append(currDir + "/" + exe_file)
+                        parallel_failed.append(currDir + "/" + exe_file)
                     
                     failed_third_cycle.append(counter)
             
@@ -2251,935 +2255,39 @@ def calculate1holeStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
                 start_counter = counter
             
     
-    if len(parallel_1hole_failed) == 0:
-        writeResults1hole()
+    if len(parallel_failed) == 0:
+        writeResults()
         return
     
     # Execute parallel batch job with logging of calculated state
-    executeBatchStateCalculation(parallel_1hole_failed, file_cycle_log_1hole, calculated1holeStates[start_counter:], "Fourth Cycle Last Calculated:\n")
+    executeBatchStateCalculation(parallel_failed, file_cycle_log, calculatedStates[start_counter:], "Fourth Cycle Last Calculated:\n")
     
     
-    radiative_by_hand = []
+    by_hand = []
     
     # -------------- FOURTH CYCLE TO CHECK WHICH STATES NEED TO BE REDONE BY HAND -------------- #
     
     # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
     for counter in failed_third_cycle:
-        i, jj, eigv = calculated1holeStates[counter][0]
+        i, jj, eigv = calculatedStates[counter][0]
         
-        currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-        currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+        currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+        currFileName = shell_labels[i] + "_" + str(jj) + "_" + str(eigv)
         
         converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
         
-        calculated1holeStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
+        calculatedStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
         
         if not converged:
-            radiative_by_hand.append(counter)
+            by_hand.append(counter)
         else:
             if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                radiative_by_hand.append(counter)
+                by_hand.append(counter)
     
     
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
-    writeResults1hole()
-    
-    
-
-def calculate2holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
-    global calculated2holesStates, auger_by_hand
-    
-    jj_vals = []
-    
-    parallel_2holes_paths = []
-    
-    # If no starting cycle has been specified
-    if starting_cycle == -1:
-        # -------------- DETERMINE 2J MAX VALUE -------------- #
-        
-        for i in range(len(shell_array_2holes)):
-            currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i]
-            currFileName = shell_array_2holes[i]
-            
-            configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_2holes[i], "100" if int(nelectrons) - 1 % 2 == 0 else "101", "100", [], int(nelectrons) - 1)
-            
-            parallel_2holes_paths.append(currDir + "/" + exe_file)
-            
-        
-        # Execute parallel batch job
-        executeBatchStateCalculation(parallel_2holes_paths)
-        
-        
-        parallel_2holes_paths = []
-        
-        # -------------- DETERMINE EIGENVALUE MAX VALUE -------------- #
-        
-        for i in range(len(shell_array_2holes)):
-            currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i]
-            currFileName = shell_array_2holes[i]
-            
-            maxJJi = 0
-            
-            with open(currDir + "/" + currFileName + ".f06", "r") as labelOutput:
-                for line in labelOutput.readlines():
-                    if "!!!!! For state # 1 and configuration   1 highest 2Jz possible value is" in line:
-                        maxJJi = int(line.split("!!!!! For state # 1 and configuration   1 highest 2Jz possible value is")[1].split()[0].strip())
-            
-            for jj in range(0 if maxJJi % 2 == 0 else 1, maxJJi + 1, 2):
-                jj_vals.append((i, jj))
-                
-                currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj)
-                currFileName = shell_array_2holes[i] + "_" + str(jj)
-                
-                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_2holes[i], jj, "100", [], int(nelectrons) - 1)
-            
-                parallel_2holes_paths.append(currDir + "/" + exe_file)
-        
-        # Execute parallel batch job
-        executeBatchStateCalculation(parallel_2holes_paths)
-        
-        
-        parallel_2holes_paths = []
-        
-        # -------------- FULL STATE CALCULATION -------------- #
-        
-        for i, jj in jj_vals:
-            currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj)
-            currFileName = shell_array_2holes[i] + "_" + str(jj)
-            
-            maxEigvi = 0
-            
-            with open(currDir + "/" + currFileName + ".f06", "r") as jjiOutput:
-                for line in jjiOutput.readlines():
-                    if "The reference LS state for this calculation results in" in line:
-                        maxEigvi = int(line.split("The reference LS state for this calculation results in")[1].strip().split()[0].strip())
-            
-            for eigv in range(1, maxEigvi + 1):
-                
-                calculated2holesStates.append([(i, jj, eigv)])
-                
-                currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-                
-                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, [], int(nelectrons) - 1)
-                
-                parallel_2holes_paths.append(currDir + "/" + exe_file)
-        
-        
-        with open(file_cycle_log_2holes, "a") as log_2holes:
-            log_2holes.write("2 holes states discovery done.\nList of all discovered states:\n")
-            for state in calculated2holesStates:
-                log_2holes.write(', '.join([str(qn) for qn in state[0]]) + "\n")
-            
-            log_2holes.write("ListEnd\n")
-    
-    
-    
-    # Variables to control if the last calculated state has been reached in each cycle
-    found_cycle1 = False
-    found_cycle2 = False
-    found_cycle3 = False
-    found_cycle4 = False
-    
-    # If no starting cycle has been defined or the starting cycle is 1
-    if starting_cycle <= 1:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
-        # If the starting cycle is 1 we search for the starting state in the list
-        if starting_cycle == 1:
-            counter = 0
-            for state in calculated2holesStates:
-                if found_cycle1 or starting_state == [(0, 0, 0)]:
-                    i, jj, eigv = state[0]
-                    
-                    currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-        
-                    parallel_2holes_paths.append(currDir + "/" + exe_file)
-                
-                counter += 1
-                
-                # Search for the starting state
-                if state[0] == starting_state:
-                    found_cycle1 = True
-                    start_counter = counter
-                
-        
-        # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_2holes_paths, file_cycle_log_2holes, calculated2holesStates[start_counter:], "First Cycle Last Calculated:\n")
-    
-    
-    failed_first_cycle = []
-    parallel_2holes_failed = []
-    
-    # -------------- FIRST CYCLE FOR CONVERGENCE CHECK -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1
-    if starting_cycle <= 1:
-        # Even if the starting cycle is 1 it means that the calculation has finished in the last executeBatchStateCalculation
-        counter = 0
-        for state in calculated2holesStates:
-            i, jj, eigv = state[0]
-            
-            currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            calculated2holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-            
-            if not converged:
-                
-                configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, [], int(nelectrons) - 1)
-            
-                parallel_2holes_failed.append(currDir + "/" + exe_file)
-                failed_first_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, [], int(nelectrons) - 1)
-            
-                    parallel_2holes_failed.append(currDir + "/" + exe_file)
-                    failed_first_cycle.append(counter)
-            
-            counter += 1
-        
-        # -------------- PRINT FIRST CYCLE RESULTS -------------- #
-        
-        with open(file_results, "a") as resultDump:
-            resultDump.write("First Cycle 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculated2holesStates:
-                resultDump.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-        
-    
-    
-    # If no starting cycle has been defined or the starting cycle is 1 or 2
-    if starting_cycle <= 2:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
-        # If the starting cycle is 2 we search for the starting state in the list and fill in the failed_first_cycle list
-        if starting_cycle == 2:
-            counter = 0
-            for state in calculated2holesStates:
-                if found_cycle2 or starting_state == [(0, 0, 0)]:
-                    i, jj, eigv = state[0]
-                    
-                    currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-                    
-                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-                    
-                    calculated2holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-                    
-                    if not converged:
-                        # Only add this state to the calculation if we reached the starting state
-                        if found_cycle2 or starting_state == [(0, 0, 0)]:
-                            parallel_2holes_failed.append(currDir + "/" + exe_file)
-                        
-                        failed_first_cycle.append(counter)
-                    else:
-                        if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                            # Only add this state to the calculation if we reached the starting state
-                            if found_cycle2 or starting_state == [(0, 0, 0)]:
-                                parallel_2holes_failed.append(currDir + "/" + exe_file)
-                            
-                            failed_first_cycle.append(counter)
-                
-                counter += 1
-                
-                # Search for the starting state
-                if state[0] == starting_state:
-                    found_cycle2 = True
-                    start_counter = counter
-                
-        
-        if len(parallel_2holes_failed) == 0:
-            writeResults2holes()
-            return
-        
-        # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_2holes_failed, file_cycle_log_2holes, calculated2holesStates[start_counter:], "Second Cycle Last Calculated:\n")
-    
-    
-    failed_second_cycle = []
-    parallel_2holes_failed = []
-    
-    
-    # -------------- SECOND CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1 or 2
-    if starting_cycle <= 2:
-        # Even if the starting cycle is 2 it means that the calculation has finished in the last executeBatchStateCalculation
-        # After having filled the failed_first_cycle list we can continue the calculation
-        for counter in failed_first_cycle:
-            i, jj, eigv = calculated2holesStates[counter][0]
-            
-            currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            failed_orbs = [failed_orbital.strip() + "  1 5 0 1 :"]
-            
-            
-            calculated2holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
-            
-            if not converged:
-                if failed_orbital != '':
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
-                
-                    parallel_2holes_failed.append(currDir + "/" + exe_file)
-                
-                failed_second_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    if failed_orbital != '':
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
-            
-                        parallel_2holes_failed.append(currDir + "/" + exe_file)
-                    
-                    failed_second_cycle.append(counter)
-            
-        
-        # -------------- PRINT SECOND CYCLE RESULTS -------------- #
-        
-        with open(file_results, "a") as resultDump:
-            resultDump.write("Second Cycle 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculated2holesStates:
-                resultDump.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-        
-    
-    
-    # If no starting cycle has been defined or the starting cycle is 1, 2 or 3
-    if starting_cycle <= 3:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
-        # If the starting cycle is 3 we search for the starting state in the list and fill in the failed_second_cycle list
-        if starting_cycle == 3:
-            counter = 0
-            for state in calculated2holesStates:
-                i, jj, eigv = state[0]
-                
-                currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-        
-                converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-                
-                calculated2holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-                
-                if not converged:
-                    # Only add this state to the calculation if we reached the starting state
-                    if found_cycle3 or starting_state == [(0, 0, 0)]:
-                        parallel_2holes_failed.append(currDir + "/" + exe_file)
-                    
-                    failed_second_cycle.append(counter)
-                else:
-                    if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                        # Only add this state to the calculation if we reached the starting state
-                        if found_cycle3 or starting_state == [(0, 0, 0)]:
-                            parallel_2holes_failed.append(currDir + "/" + exe_file)
-                        
-                        failed_second_cycle.append(counter)
-                
-                counter += 1
-                
-                if state[0] == starting_state:
-                    found_cycle3 = True
-                    start_counter = counter
-                
-        
-        if len(parallel_2holes_failed) == 0:
-            writeResults2holes()
-            return
-        
-        # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_2holes_failed, file_cycle_log_2holes, calculated2holesStates, "Third Cycle Last Calculated:\n")
-    
-    
-    failed_third_cycle = []
-    parallel_2holes_failed = []
-    
-    # -------------- THIRD CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1 or 2
-    if starting_cycle <= 3:
-        # Even if the starting cycle is 3 it means that the calculation has finished in the last executeBatchStateCalculation
-        # After having filled the failed_second_cycle list we can continue the calculation
-        for counter in failed_second_cycle:
-            i, jj, eigv = calculated2holesStates[counter][0]
-            
-            currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            failed_orbs = calculated2holesStates[counter][1][6]
-            
-            if failed_orbital != '':
-                failed_orbs.append("    " + failed_orbital + "  1 5 0 1 :")
-            
-            
-            if not converged:
-                if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
-            
-                    parallel_2holes_failed.append(currDir + "/" + exe_file)
-                elif len(failed_orbs) == 2:
-                    del failed_orbs[0]
-                    
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
-            
-                    parallel_2holes_failed.append(currDir + "/" + exe_file)
-                
-                failed_third_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
-            
-                        parallel_2holes_failed.append(currDir + "/" + exe_file)
-                    elif len(failed_orbs) == 2:
-                        del failed_orbs[0]
-                        
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_2holes[i], jj, eigv, failed_orbs, int(nelectrons) - 1)
-            
-                        parallel_2holes_failed.append(currDir + "/" + exe_file)
-                
-                failed_third_cycle.append(counter)
-            
-            calculated2holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
-            
-        
-        # -------------- PRINT THIRD CYCLE RESULTS -------------- #
-        
-        with open(file_results, "a") as resultDump:
-            resultDump.write("Third Cycle 2 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculated2holesStates:
-                resultDump.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-    
-    
-    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
-    # Counter for the first state to be calculated in the state lists
-    start_counter = 0
-    
-    # If the starting cycle is 4 we search for the starting state in the list and fill in the failed_third_cycle list
-    if starting_cycle == 4:
-        counter = 0
-        for state in calculated2holesStates:
-            i, jj, eigv = state[0]
-            
-            currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            calculated2holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-            
-            if not converged:
-                # Only add this state to the calculation if we reached the starting state
-                if found_cycle4 or starting_state == [(0, 0, 0)]:
-                    parallel_2holes_failed.append(currDir + "/" + exe_file)
-                
-                failed_third_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    # Only add this state to the calculation if we reached the starting state
-                    if found_cycle4 or starting_state == [(0, 0, 0)]:
-                        parallel_2holes_failed.append(currDir + "/" + exe_file)
-                    
-                    failed_third_cycle.append(counter)
-            
-            counter += 1
-            
-            if state[0] == starting_state:
-                found_cycle4 = True
-                start_counter = counter
-            
-    
-    if len(parallel_2holes_failed) == 0:
-        writeResults2holes()
-        return
-    
-    # Execute parallel batch job with logging of calculated state
-    executeBatchStateCalculation(parallel_2holes_failed, file_cycle_log_2holes, calculated2holesStates, "Fourth Cycle Last Calculated:\n")
-    
-    
-    auger_by_hand = []
-    
-    # -------------- FOURTH CYCLE TO CHECK WHICH STATES NEED TO BE REDONE BY HAND -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
-    for counter in failed_third_cycle:
-        i, jj, eigv = calculated2holesStates[counter][0]
-        
-        currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-        currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-        
-        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-        
-        calculated2holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
-        
-        if not converged:
-            auger_by_hand.append(counter)
-        else:
-            if Diff < 0.0 or Diff >= diffThreshold or overlap > overlapsThreshold:
-                auger_by_hand.append(counter)
-    
-    
-    # -------------- WRITE RESULTS TO THE FILES -------------- #
-    
-    writeResults2holes()
-    
-
-
-def calculate3holesStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
-    global calculated3holesStates, sat_auger_by_hand
-    
-    jj_vals = []
-    
-    parallel_3holes_paths = []
-    
-    # If no starting cycle has been specified
-    if starting_cycle == -1:
-        # -------------- DETERMINE 2J MAX VALUE -------------- #
-        
-        for i in range(len(shell_array_3holes)):
-            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i]
-            currFileName = shell_array_3holes[i]
-            
-            configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_3holes[i], "100" if int(nelectrons) - 2 % 2 == 0 else "101", "100", [], int(nelectrons) - 2)
-            
-            parallel_3holes_paths.append(currDir + "/" + exe_file)
-            
-        
-        # Execute parallel batch job
-        executeBatchStateCalculation(parallel_3holes_paths)
-        
-        
-        parallel_3holes_paths = []
-        
-        # -------------- DETERMINE EIGENVALUE MAX VALUE -------------- #
-        
-        for i in range(len(shell_array_3holes)):
-            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i]
-            currFileName = shell_array_3holes[i]
-            
-            maxJJi = 0
-            
-            with open(currDir + "/" + currFileName + ".f06", "r") as labelOutput:
-                for line in labelOutput.readlines():
-                    if "!!!!! For state # 1 and configuration   1 highest 2Jz possible value is" in line:
-                        maxJJi = int(line.split("!!!!! For state # 1 and configuration   1 highest 2Jz possible value is")[1].split()[0].strip())
-            
-            for jj in range(0 if maxJJi % 2 == 0 else 1, maxJJi + 1, 2):
-                jj_vals.append((i, jj))
-                
-                currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj)
-                currFileName = shell_array_3holes[i] + "_" + str(jj)
-                
-                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_3holes[i], jj, "100", [], int(nelectrons) - 2)
-            
-                parallel_3holes_paths.append(currDir + "/" + exe_file)
-        
-        # Execute parallel batch job
-        executeBatchStateCalculation(parallel_3holes_paths)
-        
-        
-        parallel_3holes_paths = []
-        
-        # -------------- FULL STATE CALCULATION -------------- #
-        
-        for i, jj in jj_vals:
-            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj)
-            currFileName = shell_array_3holes[i] + "_" + str(jj)
-            
-            maxEigvi = 0
-            
-            with open(currDir + "/" + currFileName + ".f06", "r") as jjiOutput:
-                for line in jjiOutput.readlines():
-                    if "The reference LS state for this calculation results in" in line:
-                        maxEigvi = int(line.split("The reference LS state for this calculation results in")[1].strip().split()[0].strip())
-            
-            for eigv in range(1, maxEigvi + 1):
-                
-                calculated3holesStates.append([(i, jj, eigv)])
-                
-                currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-                
-                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, [], int(nelectrons) - 2)
-                
-                parallel_3holes_paths.append(currDir + "/" + exe_file)
-        
-        
-        with open(file_cycle_log_3holes, "a") as log_3holes:
-            log_3holes.write("3 holes states discovery done.\nList of all discovered states:\n")
-            for state in calculated3holesStates:
-                log_3holes.write(', '.join([str(qn) for qn in state[0]]) + "\n")
-            
-            log_3holes.write("ListEnd\n")
-    
-    
-    
-    # Variables to control if the last calculated state has been reached in each cycle
-    found_cycle1 = False
-    found_cycle2 = False
-    found_cycle3 = False
-    found_cycle4 = False
-    
-    # If no starting cycle has been defined or the starting cycle is 1
-    if starting_cycle <= 1:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
-        # If the starting cycle is 1 we search for the starting state in the list
-        if starting_cycle == 1:
-            counter = 0
-            for state in calculated3holesStates:
-                if found_cycle1 or starting_state == [(0, 0, 0)]:
-                    i, jj, eigv = state[0]
-                    
-                    currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-        
-                    parallel_3holes_paths.append(currDir + "/" + exe_file)
-                
-                counter += 1
-                
-                # Search for the starting state
-                if state[0] == starting_state:
-                    found_cycle1 = True
-                    start_counter = counter
-                
-        
-        # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_3holes_paths, file_cycle_log_3holes, calculated3holesStates[start_counter:], "First Cycle Last Calculated:\n")
-    
-    
-    failed_first_cycle = []
-    parallel_3holes_failed = []
-    
-    # -------------- FIRST CYCLE FOR CONVERGENCE CHECK -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1
-    if starting_cycle <= 1:
-        # Even if the starting cycle is 1 it means that the calculation has finished in the last executeBatchStateCalculation
-        counter = 0
-        for state in calculated3holesStates:
-            i, jj, eigv = state[0]
-            
-            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-            
-            if not converged:
-                
-                configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, [], int(nelectrons) - 2)
-            
-                parallel_3holes_failed.append(currDir + "/" + exe_file)
-                failed_first_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, [], int(nelectrons) - 2)
-            
-                    parallel_3holes_failed.append(currDir + "/" + exe_file)
-                    failed_first_cycle.append(counter)
-            
-            counter += 1
-        
-        # -------------- PRINT FIRST CYCLE RESULTS -------------- #
-        
-        with open(file_results, "a") as resultDump:
-            resultDump.write("First Cycle 3 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculated3holesStates:
-                resultDump.write(shell_array_3holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-        
-    
-    
-    # If no starting cycle has been defined or the starting cycle is 1 or 2
-    if starting_cycle <= 2:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
-        # If the starting cycle is 2 we search for the starting state in the list and fill in the failed_first_cycle list
-        if starting_cycle == 2:
-            counter = 0
-            for state in calculated3holesStates:
-                if found_cycle2 or starting_state == [(0, 0, 0)]:
-                    i, jj, eigv = state[0]
-                    
-                    currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-                    
-                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-                    
-                    calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-                    
-                    if not converged:
-                        # Only add this state to the calculation if we reached the starting state
-                        if found_cycle2 or starting_state == [(0, 0, 0)]:
-                            parallel_3holes_failed.append(currDir + "/" + exe_file)
-                        
-                        failed_first_cycle.append(counter)
-                    else:
-                        if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                            # Only add this state to the calculation if we reached the starting state
-                            if found_cycle2 or starting_state == [(0, 0, 0)]:
-                                parallel_3holes_failed.append(currDir + "/" + exe_file)
-                            
-                            failed_first_cycle.append(counter)
-                
-                counter += 1
-                
-                # Search for the starting state
-                if state[0] == starting_state:
-                    found_cycle2 = True
-                    start_counter = counter
-                
-        
-        if len(parallel_3holes_failed) == 0:
-            writeResults3holes()
-            return
-        
-        # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_3holes_failed, file_cycle_log_3holes, calculated3holesStates[start_counter:], "Second Cycle Last Calculated:\n")
-    
-    
-    failed_second_cycle = []
-    parallel_3holes_failed = []
-    
-    
-    # -------------- SECOND CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1 or 2
-    if starting_cycle <= 2:
-        # Even if the starting cycle is 2 it means that the calculation has finished in the last executeBatchStateCalculation
-        # After having filled the failed_first_cycle list we can continue the calculation
-        for counter in failed_first_cycle:
-            i, jj, eigv = calculated3holesStates[counter][0]
-            
-            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            failed_orbs = [failed_orbital.strip() + "  1 5 0 1 :"]
-            
-            
-            calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
-            
-            if not converged:
-                if failed_orbital != '':
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
-                
-                    parallel_3holes_failed.append(currDir + "/" + exe_file)
-                
-                failed_second_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    if failed_orbital != '':
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
-            
-                        parallel_3holes_failed.append(currDir + "/" + exe_file)
-                    
-                    failed_second_cycle.append(counter)
-            
-        
-        # -------------- PRINT SECOND CYCLE RESULTS -------------- #
-        
-        with open(file_results, "a") as resultDump:
-            resultDump.write("Second Cycle 3 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculated3holesStates:
-                resultDump.write(shell_array_3holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-        
-    
-    
-    # If no starting cycle has been defined or the starting cycle is 1, 2 or 3
-    if starting_cycle <= 3:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
-        # If the starting cycle is 3 we search for the starting state in the list and fill in the failed_second_cycle list
-        if starting_cycle == 3:
-            counter = 0
-            for state in calculated3holesStates:
-                i, jj, eigv = state[0]
-                
-                currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-        
-                converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-                
-                calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-                
-                if not converged:
-                    # Only add this state to the calculation if we reached the starting state
-                    if found_cycle3 or starting_state == [(0, 0, 0)]:
-                        parallel_3holes_failed.append(currDir + "/" + exe_file)
-                    
-                    failed_second_cycle.append(counter)
-                else:
-                    if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                        # Only add this state to the calculation if we reached the starting state
-                        if found_cycle3 or starting_state == [(0, 0, 0)]:
-                            parallel_3holes_failed.append(currDir + "/" + exe_file)
-                        
-                        failed_second_cycle.append(counter)
-                
-                counter += 1
-                
-                if state[0] == starting_state:
-                    found_cycle3 = True
-                    start_counter = counter
-                
-        
-        if len(parallel_3holes_failed) == 0:
-            writeResults3holes()
-            return
-        
-        # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_3holes_failed, file_cycle_log_3holes, calculated3holesStates, "Third Cycle Last Calculated:\n")
-    
-    
-    failed_third_cycle = []
-    parallel_3holes_failed = []
-    
-    # -------------- THIRD CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1 or 2
-    if starting_cycle <= 3:
-        # Even if the starting cycle is 3 it means that the calculation has finished in the last executeBatchStateCalculation
-        # After having filled the failed_second_cycle list we can continue the calculation
-        for counter in failed_second_cycle:
-            i, jj, eigv = calculated3holesStates[counter][0]
-            
-            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            failed_orbs = calculated3holesStates[counter][1][6]
-            
-            if failed_orbital != '':
-                failed_orbs.append("    " + failed_orbital + "  1 5 0 1 :")
-            
-            
-            if not converged:
-                if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
-            
-                    parallel_3holes_failed.append(currDir + "/" + exe_file)
-                elif len(failed_orbs) == 2:
-                    del failed_orbs[0]
-                    
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
-            
-                    parallel_3holes_failed.append(currDir + "/" + exe_file)
-                
-                failed_third_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
-            
-                        parallel_3holes_failed.append(currDir + "/" + exe_file)
-                    elif len(failed_orbs) == 2:
-                        del failed_orbs[0]
-                        
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_3holes[i], jj, eigv, failed_orbs, int(nelectrons) - 2)
-            
-                        parallel_3holes_failed.append(currDir + "/" + exe_file)
-                
-                failed_third_cycle.append(counter)
-            
-            calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
-            
-        
-        # -------------- PRINT THIRD CYCLE RESULTS -------------- #
-        
-        with open(file_results, "a") as resultDump:
-            resultDump.write("Third Cycle 3 Hole states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculated3holesStates:
-                resultDump.write(shell_array_3holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-    
-    
-    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
-    # Counter for the first state to be calculated in the state lists
-    start_counter = 0
-    
-    # If the starting cycle is 4 we search for the starting state in the list and fill in the failed_third_cycle list
-    if starting_cycle == 4:
-        counter = 0
-        for state in calculated3holesStates:
-            i, jj, eigv = state[0]
-            
-            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-            
-            if not converged:
-                # Only add this state to the calculation if we reached the starting state
-                if found_cycle4 or starting_state == [(0, 0, 0)]:
-                    parallel_3holes_failed.append(currDir + "/" + exe_file)
-                
-                failed_third_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    # Only add this state to the calculation if we reached the starting state
-                    if found_cycle4 or starting_state == [(0, 0, 0)]:
-                        parallel_3holes_failed.append(currDir + "/" + exe_file)
-                    
-                    failed_third_cycle.append(counter)
-            
-            counter += 1
-            
-            if state[0] == starting_state:
-                found_cycle4 = True
-                start_counter = counter
-            
-    
-    if len(parallel_3holes_failed) == 0:
-        writeResults3holes()
-        return
-    
-    # Execute parallel batch job with logging of calculated state
-    executeBatchStateCalculation(parallel_3holes_failed, file_cycle_log_3holes, calculated3holesStates, "Fourth Cycle Last Calculated:\n")
-    
-    
-    sat_auger_by_hand = []
-    
-    # -------------- FOURTH CYCLE TO CHECK WHICH STATES NEED TO BE REDONE BY HAND -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
-    for counter in failed_third_cycle:
-        i, jj, eigv = calculated3holesStates[counter][0]
-        
-        currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-        currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-        
-        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-        
-        calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
-        
-        if not converged:
-            sat_auger_by_hand.append(counter)
-        else:
-            if Diff < 0.0 or Diff >= diffThreshold or overlap > overlapsThreshold:
-                sat_auger_by_hand.append(counter)
-    
-    
-    # -------------- WRITE RESULTS TO THE FILES -------------- #
-    
-    writeResults3holes()
+    writeResults()
 
 
 def checkMonopolar(i, jj):
@@ -3191,458 +2299,6 @@ def checkMonopolar(i, jj):
         return True
     else:
         return False
-
-
-def calculateShakeupStates(starting_cycle = -1, starting_state = [(0, 0, 0)]):
-    global calculatedShakeupStates, shakeup_by_hand
-    
-    jj_vals = []
-    
-    parallel_shakeup_paths = []
-    
-    # If no starting cycle has been specified
-    if starting_cycle == -1:
-        # -------------- DETERMINE 2J MAX VALUE -------------- #
-        
-        for i in range(len(shell_array_shakeup)):
-            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i]
-            currFileName = shell_array_shakeup[i]
-            
-            configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_shakeup[i], "100" if int(nelectrons) % 2 == 0 else "101", "100", [], int(nelectrons))
-            
-            parallel_shakeup_paths.append(currDir + "/" + exe_file)
-            
-        
-        # Execute parallel batch job
-        executeBatchStateCalculation(parallel_shakeup_paths)
-        
-        
-        parallel_shakeup_paths = []
-        
-        # -------------- DETERMINE EIGENVALUE MAX VALUE -------------- #
-        
-        for i in range(len(shell_array_shakeup)):
-            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i]
-            currFileName = shell_array_shakeup[i]
-            
-            maxJJi = 0
-            
-            with open(currDir + "/" + currFileName + ".f06", "r") as labelOutput:
-                for line in labelOutput.readlines():
-                    if "!!!!! For state # 1 and configuration   1 highest 2Jz possible value is" in line:
-                        maxJJi = int(line.split("!!!!! For state # 1 and configuration   1 highest 2Jz possible value is")[1].split()[0].strip())
-            
-            for jj in range(0 if maxJJi % 2 == 0 else 1, maxJJi + 1, 2):
-                # Filter for monopolar excitations
-                if not checkMonopolar(i, jj):
-                    continue
-                
-                jj_vals.append((i, jj))
-                
-                currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj)
-                currFileName = shell_array_shakeup[i] + "_" + str(jj)
-                
-                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_shakeup[i], jj, "100", [], int(nelectrons))
-            
-                parallel_shakeup_paths.append(currDir + "/" + exe_file)
-        
-        # Execute parallel batch job
-        executeBatchStateCalculation(parallel_shakeup_paths)
-        
-        
-        parallel_shakeup_paths = []
-        
-        # -------------- FULL STATE CALCULATION -------------- #
-        
-        for i, jj in jj_vals:
-            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj)
-            currFileName = shell_array_shakeup[i] + "_" + str(jj)
-            
-            maxEigvi = 0
-            
-            with open(currDir + "/" + currFileName + ".f06", "r") as jjiOutput:
-                for line in jjiOutput.readlines():
-                    if "The reference LS state for this calculation results in" in line:
-                        maxEigvi = int(line.split("The reference LS state for this calculation results in")[1].strip().split()[0].strip())
-            
-            for eigv in range(1, maxEigvi + 1):
-                
-                calculatedShakeupStates.append([(i, jj, eigv)])
-                
-                currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-                
-                configureStateInputFile(f05Template_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, [], int(nelectrons))
-                
-                parallel_shakeup_paths.append(currDir + "/" + exe_file)
-        
-        
-        with open(file_cycle_log_shakeup, "a") as log_shakeup:
-            log_shakeup.write("Shake-up states discovery done.\nList of all discovered states:\n")
-            for state in calculatedShakeupStates:
-                log_shakeup.write(', '.join([str(qn) for qn in state[0]]) + "\n")
-            
-            log_shakeup.write("ListEnd\n")
-    
-    
-    
-    # Variables to control if the last calculated state has been reached in each cycle
-    found_cycle1 = False
-    found_cycle2 = False
-    found_cycle3 = False
-    found_cycle4 = False
-    
-    # If no starting cycle has been defined or the starting cycle is 1
-    if starting_cycle <= 1:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
-        # If the starting cycle is 1 we search for the starting state in the list
-        if starting_cycle == 1:
-            counter = 0
-            for state in calculatedShakeupStates:
-                if found_cycle1 or starting_state == [(0, 0, 0)]:
-                    i, jj, eigv = state[0]
-                    
-                    currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-        
-                    parallel_shakeup_paths.append(currDir + "/" + exe_file)
-                
-                counter += 1
-                
-                # Search for the starting state
-                if state[0] == starting_state:
-                    found_cycle1 = True
-                    start_counter = counter
-                
-        
-        # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_shakeup_paths, file_cycle_log_shakeup, calculatedShakeupStates[start_counter:], "First Cycle Last Calculated:\n")
-    
-    
-    failed_first_cycle = []
-    parallel_shakeup_failed = []
-    
-    # -------------- FIRST CYCLE FOR CONVERGENCE CHECK -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1
-    if starting_cycle <= 1:
-        # Even if the starting cycle is 1 it means that the calculation has finished in the last executeBatchStateCalculation
-        counter = 0
-        for state in calculatedShakeupStates:
-            i, jj, eigv = state[0]
-            
-            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-            
-            if not converged:
-                
-                configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, [], int(nelectrons))
-            
-                parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                failed_first_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, [], int(nelectrons))
-            
-                    parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                    failed_first_cycle.append(counter)
-            
-            counter += 1
-        
-        # -------------- PRINT FIRST CYCLE RESULTS -------------- #
-        
-        with open(file_results, "a") as resultDump:
-            resultDump.write("First Cycle Shake-up states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculatedShakeupStates:
-                resultDump.write(shell_array_shakeup[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-        
-    
-    
-    # If no starting cycle has been defined or the starting cycle is 1 or 2
-    if starting_cycle <= 2:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
-        # If the starting cycle is 2 we search for the starting state in the list and fill in the failed_first_cycle list
-        if starting_cycle == 2:
-            counter = 0
-            for state in calculatedShakeupStates:
-                if found_cycle2 or starting_state == [(0, 0, 0)]:
-                    i, jj, eigv = state[0]
-                    
-                    currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-                    
-                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-                    
-                    calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-                    
-                    if not converged:
-                        # Only add this state to the calculation if we reached the starting state
-                        if found_cycle2 or starting_state == [(0, 0, 0)]:
-                            parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                        
-                        failed_first_cycle.append(counter)
-                    else:
-                        if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                            # Only add this state to the calculation if we reached the starting state
-                            if found_cycle2 or starting_state == [(0, 0, 0)]:
-                                parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                            
-                            failed_first_cycle.append(counter)
-                
-                counter += 1
-                
-                # Search for the starting state
-                if state[0] == starting_state:
-                    found_cycle2 = True
-                    start_counter = counter
-                
-        
-        if len(parallel_shakeup_failed) == 0:
-            writeResultsShakeup()
-            return
-        
-        # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_shakeup_failed, file_cycle_log_shakeup, calculatedShakeupStates[start_counter:], "Second Cycle Last Calculated:\n")
-    
-    
-    failed_second_cycle = []
-    parallel_shakeup_failed = []
-    
-    
-    # -------------- SECOND CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1 or 2
-    if starting_cycle <= 2:
-        # Even if the starting cycle is 2 it means that the calculation has finished in the last executeBatchStateCalculation
-        # After having filled the failed_first_cycle list we can continue the calculation
-        for counter in failed_first_cycle:
-            i, jj, eigv = calculatedShakeupStates[counter][0]
-            
-            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            failed_orbs = [failed_orbital.strip() + "  1 5 0 1 :"]
-            
-            
-            calculatedShakeupStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
-            
-            if not converged:
-                if failed_orbital != '':
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
-                
-                    parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                
-                failed_second_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    if failed_orbital != '':
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
-            
-                        parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                    
-                    failed_second_cycle.append(counter)
-            
-        
-        # -------------- PRINT SECOND CYCLE RESULTS -------------- #
-        
-        with open(file_results, "a") as resultDump:
-            resultDump.write("Second Cycle Shake-up states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculatedShakeupStates:
-                resultDump.write(shell_array_shakeup[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-        
-    
-    
-    # If no starting cycle has been defined or the starting cycle is 1, 2 or 3
-    if starting_cycle <= 3:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
-        # If the starting cycle is 3 we search for the starting state in the list and fill in the failed_second_cycle list
-        if starting_cycle == 3:
-            counter = 0
-            for state in calculatedShakeupStates:
-                i, jj, eigv = state[0]
-                
-                currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-        
-                converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-                
-                calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-                
-                if not converged:
-                    # Only add this state to the calculation if we reached the starting state
-                    if found_cycle3 or starting_state == [(0, 0, 0)]:
-                        parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                    
-                    failed_second_cycle.append(counter)
-                else:
-                    if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                        # Only add this state to the calculation if we reached the starting state
-                        if found_cycle3 or starting_state == [(0, 0, 0)]:
-                            parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                        
-                        failed_second_cycle.append(counter)
-                
-                counter += 1
-                
-                if state[0] == starting_state:
-                    found_cycle3 = True
-                    start_counter = counter
-                
-        
-        if len(parallel_shakeup_failed) == 0:
-            writeResultsShakeup()
-            return
-        
-        # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_shakeup_failed, file_cycle_log_shakeup, calculatedShakeupStates, "Third Cycle Last Calculated:\n")
-    
-    
-    failed_third_cycle = []
-    parallel_shakeup_failed = []
-    
-    # -------------- THIRD CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1 or 2
-    if starting_cycle <= 3:
-        # Even if the starting cycle is 3 it means that the calculation has finished in the last executeBatchStateCalculation
-        # After having filled the failed_second_cycle list we can continue the calculation
-        for counter in failed_second_cycle:
-            i, jj, eigv = calculatedShakeupStates[counter][0]
-            
-            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            failed_orbs = calculatedShakeupStates[counter][1][6]
-            
-            if failed_orbital != '':
-                failed_orbs.append("    " + failed_orbital + "  1 5 0 1 :")
-            
-            
-            if not converged:
-                if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
-            
-                    parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                elif len(failed_orbs) == 2:
-                    del failed_orbs[0]
-                    
-                    configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
-            
-                    parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                
-                failed_third_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    if failed_orbs[0] != "  1 5 0 1 :" and len(failed_orbs) == 2:
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
-            
-                        parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                    elif len(failed_orbs) == 2:
-                        del failed_orbs[0]
-                        
-                        configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, configuration_shakeup[i], jj, eigv, failed_orbs, int(nelectrons))
-            
-                        parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                
-                failed_third_cycle.append(counter)
-            
-            calculatedShakeupStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
-            
-        
-        # -------------- PRINT THIRD CYCLE RESULTS -------------- #
-        
-        with open(file_results, "a") as resultDump:
-            resultDump.write("Third Cycle Shake-up states\nShell, Shell index, 2J, Eigv, Higher Configuration, Percentage, Overlap, Accuracy, Energy Difference, Energy Welton\n")
-            for state in calculatedShakeupStates:
-                resultDump.write(shell_array_shakeup[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
-    
-    
-    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
-    # Counter for the first state to be calculated in the state lists
-    start_counter = 0
-    
-    # If the starting cycle is 4 we search for the starting state in the list and fill in the failed_third_cycle list
-    if starting_cycle == 4:
-        counter = 0
-        for state in calculatedShakeupStates:
-            i, jj, eigv = state[0]
-            
-            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-            
-            if not converged:
-                # Only add this state to the calculation if we reached the starting state
-                if found_cycle4 or starting_state == [(0, 0, 0)]:
-                    parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                
-                failed_third_cycle.append(counter)
-            else:
-                if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                    # Only add this state to the calculation if we reached the starting state
-                    if found_cycle4 or starting_state == [(0, 0, 0)]:
-                        parallel_shakeup_failed.append(currDir + "/" + exe_file)
-                    
-                    failed_third_cycle.append(counter)
-            
-            counter += 1
-            
-            if state[0] == starting_state:
-                found_cycle4 = True
-                start_counter = counter
-            
-    
-    if len(parallel_shakeup_failed) == 0:
-        writeResultsShakeup()
-        return
-    
-    # Execute parallel batch job with logging of calculated state
-    executeBatchStateCalculation(parallel_shakeup_failed, file_cycle_log_shakeup, calculatedShakeupStates, "Fourth Cycle Last Calculated:\n")
-    
-    
-    shakeup_by_hand = []
-    
-    # -------------- FOURTH CYCLE TO CHECK WHICH STATES NEED TO BE REDONE BY HAND -------------- #
-    
-    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
-    for counter in failed_third_cycle:
-        i, jj, eigv = calculatedShakeupStates[counter][0]
-        
-        currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-        currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-        
-        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-        
-        calculatedShakeupStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
-        
-        if not converged:
-            shakeup_by_hand.append(counter)
-        else:
-            if Diff < 0.0 or Diff >= diffThreshold or overlap > overlapsThreshold:
-                shakeup_by_hand.append(counter)
-    
-    
-    # -------------- WRITE RESULTS TO THE FILES -------------- #
-    
-    writeResultsShakeup()
-
 
 
 def sortCalculatedStates():
@@ -3689,7 +2345,6 @@ def sortCalculatedStates():
             for state in calculatedShakeupStates:
                 sorted_shakeup.write(', '.join([str(qn) for qn in state[0]]) + "; " + ', '.join([str(par) for par in state[1]]) + "\n")
     
-
 
 
 def readTransition(currDir, currFileName, radiative = True):
@@ -5380,6 +4035,22 @@ def setupElectronConfigs():
                                                 configuration_shakeup[-1] += "(" + shell + ")1"
                                             
         
+        with open(file_automatic_configurations, "w") as auto_configs:
+            auto_configs.write("1 hole:\n")
+            for conf, shell in zip(configuration_1hole, shell_array):
+                auto_configs.write(conf + ", " + shell + "\n")
+            
+            auto_configs.write("2 hole:\n")
+            for conf, shell in zip(configuration_2holes, shell_array_2holes):
+                auto_configs.write(conf + ", " + shell + "\n")
+            
+            auto_configs.write("3 hole:\n")
+            for conf, shell in zip(configuration_3holes, shell_array_3holes):
+                auto_configs.write(conf + ", " + shell + "\n")
+            
+            auto_configs.write("Shake-up:\n")
+            for conf, shell in zip(configuration_shakeup, shell_array_shakeup):
+                auto_configs.write(conf + ", " + shell + "\n")
         
         nelectrons = str(enum)
         
@@ -5657,6 +4328,7 @@ def setupFiles():
     global file_rates_spectrum_diagram, file_rates_spectrum_auger, file_rates_spectrum_shakeoff, file_rates_spectrum_shakeup
     global file_rates_sums, file_rates_sums_shakeoff, file_rates_sums_shakeup
     global file_level_widths, file_level_widths_shakeoff, file_level_widths_shakeup, file_level_widths_sat_auger
+    global file_automatic_configurations
     
     
     file_cycle_log_1hole = rootDir + "/" + directory_name + "/" + directory_name + "_1hole_states_log.txt"
@@ -5702,6 +4374,9 @@ def setupFiles():
     file_level_widths_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_shakeoff.txt"
     file_level_widths_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_shakeup.txt"
     file_level_widths_sat_auger = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_sat_auger.txt"
+    
+    if label_auto:
+        file_automatic_configurations = rootDir + "/" + directory_name + "/backup_generated_configurations.txt"
 
 
 def writeCalculationParameters():
@@ -6122,23 +4797,39 @@ if __name__ == "__main__":
     type_calc = ''
     
     if not partial:
-        calculate1holeStates()
-        calculate2holesStates()
+        calculateStates(shell_array, "radiative", configuration_1hole, int(nelectrons), calculated1holeStates, \
+                        file_cycle_log_1hole, "1 hole states discovery done.\nList of all discovered states:\n", "1 Hole", \
+                        writeResults1hole, radiative_by_hand)
+        calculateStates(shell_array_2holes, "auger", configuration_2holes, int(nelectrons) - 1, calculated2holesStates, \
+                        file_cycle_log_2holes, "2 hole states discovery done.\nList of all discovered states:\n", "2 Hole", \
+                        writeResults2holes, auger_by_hand)
         if calculate_3holes:
-            calculate3holesStates()
+            calculateStates(shell_array_3holes, "3holes", configuration_3holes, int(nelectrons) - 2, calculated3holesStates, \
+                            file_cycle_log_3holes, "3 holes states discovery done.\nList of all discovered states:\n", "3 Hole", \
+                            writeResults3holes, sat_auger_by_hand)
         if calculate_shakeup:
-            calculateShakeupStates()
+            calculateStates(shell_array_shakeup, "shakeup", configuration_shakeup, int(nelectrons), calculatedShakeupStates, \
+                            file_cycle_log_shakeup, "Shake-up states discovery done.\nList of all discovered states:\n", "Shake-up", \
+                            writeResultsShakeup, shakeup_by_hand, True)
         
         type_calc = midPrompt()
     elif redo_energy_calc:
         if not complete_1hole:
-            calculate1holeStates(last_calculated_cycle_1hole, last_calculated_state_1hole)
+            calculateStates(shell_array, "radiative", configuration_1hole, int(nelectrons), calculated1holeStates, \
+                        file_cycle_log_1hole, "1 hole states discovery done.\nList of all discovered states:\n", "1 Hole", \
+                        writeResults1hole, radiative_by_hand, False, last_calculated_cycle_1hole, last_calculated_state_1hole)
         if not complete_2holes:
-            calculate2holesStates(last_calculated_cycle_2holes, last_calculated_state_2holes)
+            calculateStates(shell_array_2holes, "auger", configuration_2holes, int(nelectrons) - 1, calculated2holesStates, \
+                        file_cycle_log_2holes, "2 hole states discovery done.\nList of all discovered states:\n", "2 Hole", \
+                        writeResults2holes, auger_by_hand, False, last_calculated_cycle_2holes, last_calculated_state_2holes)
         if not complete_3holes and calculate_3holes:
-            calculate3holesStates(last_calculated_cycle_3holes, last_calculated_state_3holes)
+            calculateStates(shell_array_3holes, "3holes", configuration_3holes, int(nelectrons) - 2, calculated3holesStates, \
+                            file_cycle_log_3holes, "3 holes states discovery done.\nList of all discovered states:\n", "3 Hole", \
+                            writeResults3holes, sat_auger_by_hand, False, last_calculated_cycle_3holes, last_calculated_state_3holes)
         if not complete_shakeup and calculate_shakeup:
-            calculateShakeupStates(last_calculated_cycle_shakeup, last_calculated_state_shakeup)
+            calculateStates(shell_array_shakeup, "shakeup", configuration_shakeup, int(nelectrons), calculatedShakeupStates, \
+                            file_cycle_log_shakeup, "Shake-up states discovery done.\nList of all discovered states:\n", "Shake-up", \
+                            writeResultsShakeup, shakeup_by_hand, True, last_calculated_cycle_shakeup, last_calculated_state_shakeup)
     
     
     if resort:
