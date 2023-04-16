@@ -564,50 +564,50 @@ def checkPartial():
             global calculated1holeStates
             
             with open(file_cycle_log_1hole, "r") as calculated1hole:
-            if "1 hole states discovery done." in calculated1hole.readline():
-                calculated1hole.readline()
-                for line in calculated1hole:
-                    if "ListEnd" in line:
-                        complete_1hole = True
-                    
-                    if "First Cycle Last Calculated:" in line:
-                        last_calculated_cycle_1hole = 1
-                    elif "Second Cycle Last Calculated:" in line:
-                        last_calculated_cycle_1hole = 2
-                    elif "Third Cycle Last Calculated:" in line:
-                        last_calculated_cycle_1hole = 3
-                    elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
-                        last_calculated_cycle_1hole = 4
-                    elif last_calculated_cycle_1hole > 0 and line != "\n":
-                        last_calculated_state_1hole = [tuple(int(qn) for qn in line.strip().split(", "))]
-                    
-                    if not complete_1hole:
-                        calculated1holeStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
+                if "1 hole states discovery done." in calculated1hole.readline():
+                    calculated1hole.readline()
+                    for line in calculated1hole:
+                        if "ListEnd" in line:
+                            complete_1hole = True
+                        
+                        if "First Cycle Last Calculated:" in line:
+                            last_calculated_cycle_1hole = 1
+                        elif "Second Cycle Last Calculated:" in line:
+                            last_calculated_cycle_1hole = 2
+                        elif "Third Cycle Last Calculated:" in line:
+                            last_calculated_cycle_1hole = 3
+                        elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
+                            last_calculated_cycle_1hole = 4
+                        elif last_calculated_cycle_1hole > 0 and line != "\n":
+                            last_calculated_state_1hole = [tuple(int(qn) for qn in line.strip().split(", "))]
+                        
+                        if not complete_1hole:
+                            calculated1holeStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
         
         
         if read_2hole:
             global calculated2holesStates
             
             with open(file_cycle_log_2holes, "r") as calculated2holes:
-            if "2 holes states discovery done." in calculated2holes.readline():
-                calculated2holes.readline()
-                for line in calculated2holes:
-                    if "ListEnd" in line:
-                        complete_2holes = True
-                    
-                    if "First Cycle Last Calculated:" in line:
-                        last_calculated_cycle_2holes = 1
-                    elif "Second Cycle Last Calculated:" in line:
-                        last_calculated_cycle_2holes = 2
-                    elif "Third Cycle Last Calculated:" in line:
-                        last_calculated_cycle_2holes = 3
-                    elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
-                        last_calculated_cycle_2holes = 4
-                    elif last_calculated_cycle_2holes > 0 and line != "\n":
-                        last_calculated_state_2holes = [tuple(int(qn) for qn in line.strip().split(", "))]
-                    
-                    if not complete_2holes:
-                        calculated2holesStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
+                if "2 holes states discovery done." in calculated2holes.readline():
+                    calculated2holes.readline()
+                    for line in calculated2holes:
+                        if "ListEnd" in line:
+                            complete_2holes = True
+                        
+                        if "First Cycle Last Calculated:" in line:
+                            last_calculated_cycle_2holes = 1
+                        elif "Second Cycle Last Calculated:" in line:
+                            last_calculated_cycle_2holes = 2
+                        elif "Third Cycle Last Calculated:" in line:
+                            last_calculated_cycle_2holes = 3
+                        elif "Fourth Cycle Last Calculated:" in line or "CalculationFinalized" in line:
+                            last_calculated_cycle_2holes = 4
+                        elif last_calculated_cycle_2holes > 0 and line != "\n":
+                            last_calculated_state_2holes = [tuple(int(qn) for qn in line.strip().split(", "))]
+                        
+                        if not complete_2holes:
+                            calculated2holesStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
         
         
         if read_3hole:
