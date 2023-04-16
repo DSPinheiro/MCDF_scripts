@@ -51,9 +51,9 @@ directory_name = ''
 # --------------------------------------------------------------- #
 
 # Shells for the automatic determination of electron configuration
-shells = ['1s', '2s', '2p', '3s', '3p', '3d', '4s', '4p', '4d', '4f', '5s', '5p', '5d', '5f', '5g', '6s', '6p', '6d', '6f', '6g', '6h', '7s', '7p', '7d']
+shells = []
 # Occupation numbers for the automatic determination of electron configuration
-electronspershell = [2, 2, 6, 2, 6, 10, 2, 6, 10, 14, 2, 6, 10, 14, 0, 2, 6, 10, 0, 0, 0, 2, 6, 0]
+electronspershell = []
 
 lines_conf = []
 arr_conf = []
@@ -3956,6 +3956,11 @@ def setupElectronConfigs():
     global configuration_3holes, shell_array_3holes
     global configuration_shakeup, shell_array_shakeup
     global exist_3holes, exist_shakeup, calculate_3holes, calculate_shakeup
+    global shells, electronspershell
+    
+    shells = ['1s', '2s', '2p', '3s', '3p', '3d', '4s', '4p', '4d', '4f', '5s', '5p', '5d', '5f', '5g', '6s', '6p', '6d', '6f', '6g', '6h', '7s', '7p', '7d']
+    
+    electronspershell = [2, 2, 6, 2, 6, 10, 2, 6, 10, 14, 2, 6, 10, 14, 18, 2, 6, 10, 14, 18, 22, 2, 6, 10]
 
     count = 0
     
@@ -3963,7 +3968,7 @@ def setupElectronConfigs():
         enum = int(atomic_number) - 1
         
         # Initialize the array of shells and electron number
-        remain_elec = enum
+        remain_elec = enum + 1
         electron_array = []
         
         i = 0
@@ -4024,8 +4029,19 @@ def setupElectronConfigs():
                                     if h < len(shell_array):
                                         b[h] += 1
                                     
-                                    if b[h] <= electronspershell[h]:
-                                        shell_array_shakeup.append(shell_array[i] + "_" + shell_array[j] + "-" + shell_array[h])
+                                        if b[h] <= electronspershell[h]:
+                                            shell_array_shakeup.append(shell_array[i] + "_" + shell_array[j] + "-" + shell_array[h])
+                                            configuration_shakeup.append('')
+                                            
+                                            for k, shell in enumerate(shells):
+                                                if k < len(shell_array):
+                                                    configuration_shakeup[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
+                                                elif h == k:
+                                                    configuration_shakeup[-1] += "(" + shell + ")1"
+                                        
+                                        b[h] -= 1
+                                    else:
+                                        shell_array_shakeup.append(shell_array[i] + "_" + shell_array[j] + "-" + shells[h])
                                         configuration_shakeup.append('')
                                         
                                         for k, shell in enumerate(shells):
@@ -4033,7 +4049,10 @@ def setupElectronConfigs():
                                                 configuration_shakeup[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
                                             elif h == k:
                                                 configuration_shakeup[-1] += "(" + shell + ")1"
-                                            
+                        
+                        b[j] += 1
+            
+            b[i] += 1
         
         with open(file_automatic_configurations, "w") as auto_configs:
             auto_configs.write("1 hole:\n")
@@ -4061,7 +4080,7 @@ def setupElectronConfigs():
         print("\nBoth 3 hole configurations and shake-up configurations were generated.\n")
         print "Would you like to calculate these configurations? - both, 3holes or shakeup : ",
         inp = raw_input().strip()
-        while inp != 'both' or inp != '3holes' or inp != 'shakeup':
+        while inp != 'both' and inp != '3holes' and inp != 'shakeup':
             print("\n keyword must be both, 3holes or shakeup!!!")
             print "Would you like to calculate this configurations? - both, 3holes or shakeup : ",
             inp = raw_input().strip()
@@ -4520,7 +4539,7 @@ def midPrompt(partial_check=False):
                 parametersFileString = ''.join(fp.readlines())
             
             with open(file_parameters, "w") as fp:
-                fp.write(parametersFileString.replace("Calculation performed for: " + prev_type_calc, "Calculation performed for: " + type_calc)
+                fp.write(parametersFileString.replace("Calculation performed for: " + prev_type_calc, "Calculation performed for: " + type_calc))
         
     
     return type_calc
