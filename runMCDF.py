@@ -6,6 +6,9 @@ import re
 # MCDFGME executable file name
 exe_file = 'mcdfgme2019.exe'
 
+# Output files encoding
+ouput_enconding = 'latin-1'
+
 # ARG_MAX of the machine for the parallel command
 parallel_max_length = 2097152
 
@@ -388,12 +391,10 @@ def loadElectronConfigs():
         print("Number of occupied orbitals = " + str(count) + "\n")
         
         print("\nBoth 3 hole configurations and shake-up configurations were generated.\n")
-        print "Would you like to calculate these configurations? - both, 3holes or shakeup : ",
-        inp = raw_input().strip()
+        inp = input("Would you like to calculate these configurations? - both, 3holes or shakeup : ").strip()
         while inp != 'both' or inp != '3holes' or inp != 'shakeup':
             print("\n keyword must be both, 3holes or shakeup!!!")
-            print "Would you like to calculate this configurations? - both, 3holes or shakeup : ",
-            inp = raw_input().strip()
+            inp = input("Would you like to calculate this configurations? - both, 3holes or shakeup : ").strip()
         
         if inp == 'both':
             calculate_3holes = True
@@ -478,17 +479,14 @@ def checkPartial():
     global exist_3holes, exist_shakeup, calculate_3holes, calculate_shakeup
     
     
-    print "Enter directory name for the calculations: ",
-    inp = raw_input().strip()
+    inp = input("Enter directory name for the calculations: ").strip()
     while inp == '':
         print("\n No input entered!!!\n\n")
-        print "Enter directory name for the calculations: ",
-        inp = raw_input().strip()
+        inp = input("Enter directory name for the calculations: ").strip()
 
     while not os.path.exists(inp):
         print("\n Directory name does not exist!!!\n\n")
-        print "Please input the name for the existing calculations directory: ",
-        inp = raw_input().strip()
+        inp = input("Please input the name for the existing calculations directory: ").strip()
     
     
     directory_name = inp
@@ -1450,7 +1448,7 @@ def checkOutput(currDir, currFileName):
     
     failed_orbital = ''
     
-    with open(currDir + "/" + currFileName + ".f06", "r") as output:
+    with open(currDir + "/" + currFileName + ".f06", "r", encoding = ouput_enconding) as output:
         outputContent = output.readlines()
         
         for i, line in enumerate(outputContent):
@@ -1871,7 +1869,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
             
             maxJJi = 0
             
-            with open(currDir + "/" + currFileName + ".f06", "r") as labelOutput:
+            with open(currDir + "/" + currFileName + ".f06", "r", encoding = ouput_enconding) as labelOutput:
                 for line in labelOutput.readlines():
                     if "!!!!! For state # 1 and configuration   1 highest 2Jz possible value is" in line:
                         maxJJi = int(line.split("!!!!! For state # 1 and configuration   1 highest 2Jz possible value is")[1].split()[0].strip())
@@ -1879,7 +1877,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
             for jj in range(0 if maxJJi % 2 == 0 else 1, maxJJi + 1, 2):
                 if shakeup_configs:
                     # Filter for monopolar excitations
-                    if not checkMonopolar(i, jj):
+                    if not checkMonopolar(shell_labels[i], jj):
                         continue
                 
                 jj_vals.append((i, jj))
@@ -1906,7 +1904,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
             
             maxEigvi = 0
             
-            with open(currDir + "/" + currFileName + ".f06", "r") as jjiOutput:
+            with open(currDir + "/" + currFileName + ".f06", "r", encoding = ouput_enconding) as jjiOutput:
                 for line in jjiOutput.readlines():
                     if "The reference LS state for this calculation results in" in line:
                         maxEigvi = int(line.split("The reference LS state for this calculation results in")[1].strip().split()[0].strip())
@@ -2290,10 +2288,11 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
     writeResults()
 
 
-def checkMonopolar(i, jj):
+def checkMonopolar(excited_shell_label, jj):
     # Unpack the state quantum numbers from the calculated list
-    states_1hole = calculated1holeStates[:][0]
+    states_1hole = [state[0] for state in calculated1holeStates]
     
+    i = shell_array.index(excited_shell_label.split("_")[0])
     # If the 2j value exists in the 1 hole configurations for shell i, there will be a calculation for eigv = 1
     if (i, jj, 1) in states_1hole:
         return True
@@ -2353,7 +2352,7 @@ def readTransition(currDir, currFileName, radiative = True):
     
     multipoles = []
     
-    with open(currDir + "/" + currFileName + ".f06", "r") as output:
+    with open(currDir + "/" + currFileName + ".f06", "r", encoding = ouput_enconding) as output:
         outputContent = output.readlines()
         
         if radiative:
@@ -2960,8 +2959,7 @@ def rates_shakeup(starting_transition = [(0, 0, 0), (0, 0, 0)]):
                                                                 currDir_i, currFileName_i, \
                                                                 configuration_shakeup[i], jj_i, eigv_i, nelectrons, \
                                                                 currDir_f, currFileName_f, \
-                                                                configuration_shakeup[f], jj_f, eigv_f, nelectrons, \
-                                                                energy_diff)
+                                                                configuration_shakeup[f], jj_f, eigv_f, nelectrons)
                 
                 parallel_initial_src_paths.append(currDir_i + "/" + currFileName_i + ".f09")
                 parallel_final_src_paths.append(currDir_f + "/" + currFileName_f + ".f09")
@@ -3142,7 +3140,7 @@ def calculateSpectra(radiative_done, auger_done, satellite_done, sat_aug_done, s
                 rates_sums_sat.write("\n\n")
 	
 	
-	print("JJ multiplicity/shell sat == " + ', '.join([str(jj) for jj in multiplicity_JJ_sat]) + "\n")
+    print("JJ multiplicity/shell sat == " + ', '.join([str(jj) for jj in multiplicity_JJ_sat]) + "\n")
 	
     
     if calculate_shakeup:
@@ -3830,50 +3828,40 @@ def initializeEnergyCalc():
         print("\n############## Energy Calculations with MCDGME code  ##############\n\n")
         
         
-        print "Select option for the calculation of configurations - automatic or read (from file) : ",
-        inp = raw_input().strip()
+        inp = input("Select option for the calculation of configurations - automatic or read (from file) : ").strip()
         while inp != 'automatic' and inp != 'read':
             print("\n keyword must be automatic or read!!!")
-            print "Select option for the calculation of configurations - automatic or read (from file) : ",
-            inp = raw_input().strip()
+            inp = input("Select option for the calculation of configurations - automatic or read (from file) : ").strip()
         
         label_auto = inp == 'automatic'
         
         
-        print "Enter atomic number Z : ",
-        inp = raw_input().strip()
+        inp = input("Enter atomic number Z : ").strip()
         while not inp.isdigit():
             print("\natomic number must be an integer!!!")
-            print "Enter atomic number Z : ",
-            inp = raw_input().strip()
+            inp = input("Enter atomic number Z : ").strip()
     
         atomic_number = inp
         
-        print "Calculation with standard mass? (y or n) : ",
-        inp = raw_input().strip()
+        inp = input("Calculation with standard mass? (y or n) : ").strip()
         while inp != 'y' and inp != 'n':
             print("\n must be y or n!!!")
-            print "Calculation with standard mass? (y or n) : ",
-            inp = raw_input().strip()
+            inp = input("Calculation with standard mass? (y or n) : ").strip()
     
         nuc_massyorn = inp
         
         if nuc_massyorn == 'n':
-            print "Please enter the nuclear mass : ",
-            inp = raw_input().strip()
+            inp = input("Please enter the nuclear mass : ").strip()
             while not inp.isdigit():
                 print("\nnuclear mass must be an integer!!!")
-                print "Please enter the nuclear mass : ",
-                inp = raw_input().strip()
+                inp = input("Please enter the nuclear mass : ").strip()
     
             nuc_mass = int(inp)
             
-            print "Please enter the nuclear model (uniform or fermi) : ",
-            inp = raw_input().strip()
+            inp = input("Please enter the nuclear model (uniform or fermi) : ").strip()
             while inp != 'uniform' and inp != 'fermi':
                 print("\n must be uniform or fermi!!!")
-                print "Please enter the nuclear model (uniform or fermi) : ",
-                inp = raw_input().strip()
+                inp = input("Please enter the nuclear model (uniform or fermi) : ").strip()
     
             nuc_model = inp
         
@@ -3883,18 +3871,16 @@ def initializeEnergyCalc():
         machine_type = platform.uname()[0]
         
         if machine_type == 'Darwin':
-            number_max_of_threads = subprocess.check_output(['sysctl', '-n', 'hw.ncpu']).strip()
+            number_max_of_threads = subprocess.check_output(['sysctl', '-n', 'hw.ncpu']).strip().decode("utf-8")
         else:
-            number_max_of_threads = subprocess.check_output(['nproc']).strip()
+            number_max_of_threads = subprocess.check_output(['nproc']).strip().decode("utf-8")
         
         
         print("Your " + machine_type + " machine has " + number_max_of_threads + " available threads")
-        print "Enter the number of threads you want to be used in the calculation (For all leave it blank): ",
-        inp = raw_input().strip()
+        inp = input("Enter the number of threads you want to be used in the calculation (For all leave it blank): ").strip()
         while not inp.isdigit() and inp != '':
             print("\nnumber of threads must be an integer!!!")
-            print "Enter number of threads to be used in the calculation (For all leave it blank): ",
-            inp = raw_input().strip()
+            inp = input("Enter number of threads to be used in the calculation (For all leave it blank): ").strip()
     
         if inp == '':
             number_of_threads = number_max_of_threads
@@ -3905,35 +3891,28 @@ def initializeEnergyCalc():
         
         print("number of threads = " + number_of_threads + "\n")
         
-        print "Enter directory name for the calculations: ",
-        inp = raw_input().strip()
+        inp = input("Enter directory name for the calculations: ").strip()
         while inp == '':
             print("\n No input entered!!!\n\n")
-            print "Enter directory name for the calculations: ",
-            inp = raw_input().strip()
+            inp = input("Enter directory name for the calculations: ").strip()
     
         directory_name = inp
         
         if os.path.exists(directory_name):
             print("\n Directory name already exists!!!\n\n")
-            print "Would you like to overwrite this directory? (y or n) : ",
-            inp = raw_input().strip()
+            inp = input("Would you like to overwrite this directory? (y or n) : ").strip()
             while inp != 'y' and inp != 'n':
                 print("\n must be y or n!!!")
-                print "Would you like to overwrite this directory? (y or n) : ",
-                inp = raw_input().strip()
+                inp = input("Would you like to overwrite this directory? (y or n) : ").strip()
             
             if inp == 'n':
-                print "Please choose another name for the calculation directory: ",
-                inp = raw_input().strip()
+                inp = input("Please choose another name for the calculation directory: ").strip()
             else:
                 print("\n This will erase any previous data in the directory " + directory_name)
-                print "Are you sure you would like to proceed? (y or n) : ",
-                inp = raw_input().strip()
+                inp = input("Are you sure you would like to proceed? (y or n) : ").strip()
                 while inp != 'y' and inp != 'n':
                     print("\n must be y or n!!!")
-                    print "Are you sure you would like to proceed? (y or n) : ",
-                    inp = raw_input().strip()
+                    inp = input("Are you sure you would like to proceed? (y or n) : ").strip()
                 
                 if inp == 'y':
                     shutil.rmtree(directory_name)
@@ -3942,8 +3921,7 @@ def initializeEnergyCalc():
             
             while os.path.exists(inp):
                 print("\n Directory name already exists!!!\n\n")
-                print "Please choose another name for the calculation directory: ",
-                inp = raw_input().strip()
+                inp = input("Please choose another name for the calculation directory: ").strip()
             
             directory_name = inp
 
@@ -4037,7 +4015,7 @@ def setupElectronConfigs():
                                                 if k < len(shell_array):
                                                     configuration_shakeup[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
                                                 elif h == k:
-                                                    configuration_shakeup[-1] += "(" + shell + ")1"
+                                                    configuration_shakeup[-1] += shell + "1 "
                                         
                                         b[h] -= 1
                                     else:
@@ -4048,7 +4026,7 @@ def setupElectronConfigs():
                                             if k < len(shell_array):
                                                 configuration_shakeup[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
                                             elif h == k:
-                                                configuration_shakeup[-1] += "(" + shell + ")1"
+                                                configuration_shakeup[-1] += shell + "1 "
                         
                         b[j] += 1
             
@@ -4078,12 +4056,10 @@ def setupElectronConfigs():
         print("Number of occupied orbitals = " + str(count) + "\n")
         
         print("\nBoth 3 hole configurations and shake-up configurations were generated.\n")
-        print "Would you like to calculate these configurations? - both, 3holes or shakeup : ",
-        inp = raw_input().strip()
+        inp = input("Would you like to calculate these configurations? - both, 3holes or shakeup : ").strip()
         while inp != 'both' and inp != '3holes' and inp != 'shakeup':
             print("\n keyword must be both, 3holes or shakeup!!!")
-            print "Would you like to calculate this configurations? - both, 3holes or shakeup : ",
-            inp = raw_input().strip()
+            inp = input("Would you like to calculate this configurations? - both, 3holes or shakeup : ").strip()
         
         if inp == 'both':
             calculate_3holes = True
@@ -4168,21 +4144,17 @@ def setupElectronConfigs():
             nelectrons = str(elec_1hole)
             
             print("Number of electrons for this calculation was determined as: " + str(elec_1hole))
-            print "Would you like to proceed with this value? (y or n) : ",
-            inp = raw_input().strip()
+            inp = input("Would you like to proceed with this value? (y or n) : ").strip()
             while inp != 'y' and inp != 'n':
                 print("\n must be y or n!!!")
-                print "Would you like to proceed with this value? (y or n) : ",
-                inp = raw_input().strip()
+                inp = input("Would you like to proceed with this value? (y or n) : ").strip()
             
             if inp == 'n':
                 print("Warning: You are amazing if you know what you are doing but overwriting the number of electrons will probably lead to errors... good luck.")
-                print "Enter number of electrons : ",
-                nelectrons = raw_input().strip()
+                nelectrons = input("Enter number of electrons : ").strip()
                 while not nelectrons.isdigit():
                     print("\nnumber of electrons must be an integer!!!")
-                    print "Enter number of electrons : ",
-                    nelectrons = raw_input().strip()
+                    nelectrons = input("Enter number of electrons : ").strip()
         else:
             print("Configuration files do not exist !!! Place them alongside this script and name them:")
             print(file_conf_rad)
@@ -4291,12 +4263,10 @@ def setupElectronConfigs():
         
         if exist_3holes and exist_shakeup:
             print("\nBoth 3 hole configurations and shake-up configurations exist.\n")
-            print "Would you like to calculate these configurations? - both, 3holes or shakeup : ",
-            inp = raw_input().strip()
+            inp = input("Would you like to calculate these configurations? - both, 3holes or shakeup : ").strip()
             while inp != 'both' or inp != '3holes' or inp != 'shakeup':
                 print("\n keyword must be both, 3holes or shakeup!!!")
-                print "Would you like to calculate this configurations? - both, 3holes or shakeup : ",
-                inp = raw_input().strip()
+                inp = input("Would you like to calculate this configurations? - both, 3holes or shakeup : ").strip()
             
             if inp == 'both':
                 calculate_3holes = True
@@ -4307,23 +4277,19 @@ def setupElectronConfigs():
                 calculate_shakeup = True
         elif exist_3holes:
             print("\nOnly 3 hole configurations exist.\n")
-            print "Would you like to calculate these configurations? (y or n) : ",
-            inp = raw_input().strip()
+            inp = input("Would you like to calculate these configurations? (y or n) : ").strip()
             while inp != 'y' or inp != 'n':
                 print("\n keyword must be y or n!!!")
-                print "Would you like to calculate these configurations? (y or n) : ",
-                inp = raw_input().strip()
+                inp = input("Would you like to calculate these configurations? (y or n) : ").strip()
             
             if inp == 'y':
                 calculate_3holes = True
         elif exist_shakeup:
             print("\nOnly shake-up configurations exist.\n")
-            print "Would you like to calculate these configurations? (y or n) : ",
-            inp = raw_input().strip()
+            inp = input("Would you like to calculate these configurations? (y or n) : ").strip()
             while inp != 'y' or inp != 'n':
                 print("\n keyword must be y or n!!!")
-                print "Would you like to calculate these configurations? (y or n) : ",
-                inp = raw_input().strip()
+                inp = input("Would you like to calculate these configurations? (y or n) : ").strip()
             
             if inp == 'y':
                 calculate_shakeup = True
@@ -4456,12 +4422,10 @@ def InitialPrompt():
     print("         #########################################################################################################################")
     print("         ######################################################################################################################### \n\n\n\n\n")
     
-    print "Select option for the calculation - full or partial (if energy calculation has been already performed) : ",
-    inp = raw_input().strip()
+    inp = input("Select option for the calculation - full or partial (if energy calculation has been already performed) : ").strip()
     while inp != 'full' and inp != 'partial':
         print("\n keyword must be full or partial!!!")
-        print "Select option for the calculation - full or partial (if energy calculation has been already performed) : ",
-        inp = raw_input().strip()
+        inp = input("Select option for the calculation - full or partial (if energy calculation has been already performed) : ").strip()
     
     partial = inp == 'partial'
     
@@ -4480,7 +4444,7 @@ def midPrompt(partial_check=False):
         print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
         print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
         print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
-        inp = raw_input().strip()
+        inp = input().strip()
         while inp != "Continue" and inp != "All" and inp != "Simple" and inp != "rates_all" and inp != "rates":
             if inp == "GetParameters":
                 GetParameters()
@@ -4488,7 +4452,7 @@ def midPrompt(partial_check=False):
             
             print("To recheck flagged states please type GetParameters.")
             print("If you would like to continue the rates calculation with the current states please type Continue.\n")
-            inp = raw_input().strip()
+            inp = input().strip()
 
 
         type_calc = inp
@@ -4508,12 +4472,10 @@ def midPrompt(partial_check=False):
         prev_type_calc = type_calc
         
         print("\nCalculation was previously loaded as: " + type_calc)
-        print "Would you like to proceed with this configuration? (y or n): ",
-        inp = raw_input().strip()
+        inp = input("Would you like to proceed with this configuration? (y or n): ").strip()
         while inp != "y" and inp != "n":
             print("\n must be y or n!!!")
-            print "Would you like to proceed with this configuration? (y or n): ",
-            inp = raw_input().strip()
+            inp = input("Would you like to proceed with this configuration? (y or n): ").strip()
         
         if inp == "n":
             print("Choose a new type of calculation:\n")
@@ -4521,7 +4483,7 @@ def midPrompt(partial_check=False):
             print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
             print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
             print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
-            inp = raw_input().strip()
+            inp = input().strip()
             while inp != "Continue" and inp != "All" and inp != "Simple" and inp != "rates_all" and inp != "rates":
                 print("Must be either: All, Simple, rates_all or rates!!!\n")
                 print("Choose a new type of calculation:\n")
@@ -4529,7 +4491,7 @@ def midPrompt(partial_check=False):
                 print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
                 print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
                 print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
-                inp = raw_input().strip()
+                inp = input().strip()
             
             type_calc = inp
             
@@ -4896,7 +4858,7 @@ if __name__ == "__main__":
                 rates_satellite()
                 satellite_done = True
             elif partial_sat:
-                rates_satellite(last_sat_calculated)
+                rates_satellite(last_shakeoff_calculated)
                 satellite_done = True
             
             if redo_sat_aug:
