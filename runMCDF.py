@@ -1464,6 +1464,8 @@ def checkOutput(currDir, currFileName):
     
     failed_orbital = ''
     
+    good_overlaps = True
+    
     with open(currDir + "/" + currFileName + ".f06", "r", encoding = ouput_enconding) as output:
         outputContent = output.readlines()
         
@@ -1506,8 +1508,14 @@ def checkOutput(currDir, currFileName):
                     if outputContent[cnt] == "\n":
                         break
                     else:
-                        Overlaps.append(float(outputContent[cnt].strip().split()[3]))
-                        Overlaps.append(float(outputContent[cnt].strip().split()[-1]))
+                        try:
+                            Overlaps.append(float(outputContent[cnt].strip().split()[3]))
+                        except ValueError:
+                            good_overlaps = False
+                        try:
+                            Overlaps.append(float(outputContent[cnt].strip().split()[-1]))
+                        except ValueError:
+                            good_overlaps = False
                     
                     cnt += 1
             
@@ -1520,6 +1528,9 @@ def checkOutput(currDir, currFileName):
             
             if "For orbital" in line:
                 failed_orbital = line.strip().split()[-1].strip()
+    
+    if not good_overlaps:
+        print("Error reading overlaps for: " + currFileName + ".f06")
     
     return first, failed_orbital, max(Overlaps) if len(Overlaps) > 0 else 1.0, higher_config, highest_percent, accuracy, Diff, welt
 
@@ -1952,12 +1963,12 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
     found_cycle4 = False
     
     # If no starting cycle has been defined or the starting cycle is 1
-    if starting_cycle <= 1:
+    if starting_cycle < 1:
         # Counter for the first state to be calculated in the state lists
         start_counter = 0
         
         # If the starting cycle is 1 we search for the starting state in the list
-        if starting_cycle == 1 or starting_cycle == 0:
+        if starting_cycle == 0:
             counter = 0
             for state in calculatedStates:
                 if found_cycle1 or starting_state == [(0, 0, 0)]:
@@ -2026,12 +2037,12 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
     
     
     # If no starting cycle has been defined or the starting cycle is 1 or 2
-    if starting_cycle <= 2:
+    if starting_cycle < 2:
         # Counter for the first state to be calculated in the state lists
         start_counter = 0
         
         # If the starting cycle is 2 we search for the starting state in the list and fill in the failed_first_cycle list
-        if starting_cycle == 2:
+        if starting_cycle == 1:
             counter = 0
             for state in calculatedStates:
                 if found_cycle2 or starting_state == [(0, 0, 0)]:
@@ -2122,12 +2133,12 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
     
     
     # If no starting cycle has been defined or the starting cycle is 1, 2 or 3
-    if starting_cycle <= 3:
+    if starting_cycle < 3:
         # Counter for the first state to be calculated in the state lists
         start_counter = 0
         
         # If the starting cycle is 3 we search for the starting state in the list and fill in the failed_second_cycle list
-        if starting_cycle == 3:
+        if starting_cycle == 2:
             counter = 0
             for state in calculatedStates:
                 i, jj, eigv = state[0]
