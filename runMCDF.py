@@ -304,7 +304,12 @@ def loadElectronConfigs():
     global configuration_3holes, shell_array_3holes
     global configuration_shakeup, shell_array_shakeup
     global exist_3holes, exist_shakeup, calculate_3holes, calculate_shakeup
+    global shells, electronspershell
     
+    shells = ['1s', '2s', '2p', '3s', '3p', '3d', '4s', '4p', '4d', '4f', '5s', '5p', '5d', '5f', '5g', '6s', '6p', '6d', '6f', '6g', '6h', '7s', '7p', '7d']
+    
+    electronspershell = [2, 2, 6, 2, 6, 10, 2, 6, 10, 14, 2, 6, 10, 14, 18, 2, 6, 10, 14, 18, 22, 2, 6, 10]
+
     
     count = 0
     
@@ -312,7 +317,7 @@ def loadElectronConfigs():
         enum = int(atomic_number) - 1
         
         # Initialize the array of shells and electron number
-        remain_elec = enum
+        remain_elec = enum + 1
         electron_array = []
         
         i = 0
@@ -373,26 +378,38 @@ def loadElectronConfigs():
                                     if h < len(shell_array):
                                         b[h] += 1
                                     
-                                    if b[h] <= electronspershell[h]:
-                                        shell_array_shakeup.append(shell_array[i] + "_" + shell_array[j] + "-" + shell_array[h])
+                                        if b[h] <= electronspershell[h]:
+                                            shell_array_shakeup.append(shell_array[i] + "_" + shell_array[j] + "-" + shell_array[h])
+                                            configuration_shakeup.append('')
+                                            
+                                            for k, shell in enumerate(shells):
+                                                if k < len(shell_array):
+                                                    configuration_shakeup[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
+                                                elif h == k:
+                                                    configuration_shakeup[-1] += shell + "1 "
+                                        
+                                        b[h] -= 1
+                                    else:
+                                        shell_array_shakeup.append(shell_array[i] + "_" + shell_array[j] + "-" + shells[h])
                                         configuration_shakeup.append('')
                                         
                                         for k, shell in enumerate(shells):
                                             if k < len(shell_array):
                                                 configuration_shakeup[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
                                             elif h == k:
-                                                configuration_shakeup[-1] += "(" + shell + ")1"
-                                            
+                                                configuration_shakeup[-1] += shell + "1 "
+                        
+                        b[j] += 1
+            
+            b[i] += 1
         
-        
-        print("Loaded the automatically generated electron configuration:\n\n")
         print("Element Z=" + atomic_number + "\n")
         print("Atom ground-state Neutral configuration:\n" + configuration_string + "\n")
         print("Number of occupied orbitals = " + str(count) + "\n")
         
         print("\nBoth 3 hole configurations and shake-up configurations were generated.\n")
         inp = input("Would you like to calculate these configurations? - both, 3holes or shakeup : ").strip()
-        while inp != 'both' or inp != '3holes' or inp != 'shakeup':
+        while inp != 'both' and inp != '3holes' and inp != 'shakeup':
             print("\n keyword must be both, 3holes or shakeup!!!")
             inp = input("Would you like to calculate this configurations? - both, 3holes or shakeup : ").strip()
         
@@ -587,7 +604,7 @@ def checkPartial():
             global calculated2holesStates
             
             with open(file_cycle_log_2holes, "r") as calculated2holes:
-                if "2 holes states discovery done." in calculated2holes.readline():
+                if "2 hole states discovery done." in calculated2holes.readline():
                     calculated2holes.readline()
                     for line in calculated2holes:
                         if "ListEnd" in line:
@@ -609,7 +626,7 @@ def checkPartial():
         
         
         if read_3hole:
-            global calculate3holesStates
+            global calculated3holesStates
             
             if calculate_3holes:
                 with open(file_cycle_log_3holes, "r") as calculated3holes:
@@ -631,17 +648,17 @@ def checkPartial():
                                 last_calculated_state_3holes = [tuple(int(qn) for qn in line.strip().split(", "))]
                             
                             if not complete_3holes:
-                                calculate3holesStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
+                                calculated3holesStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
             else:
                 print("\n Warning reading of the 3 hole states was requested but the calculation was never performed for these!!!")
         
         
         if read_shakeup:
-            global calculateShakeupStates
+            global calculatedShakeupStates
             
             if calculate_shakeup:
                 with open(file_cycle_log_shakeup, "r") as calculatedShakeup:
-                    if "shake-up states discovery done." in calculatedShakeup.readline():
+                    if "Shake-up states discovery done." in calculatedShakeup.readline():
                         calculatedShakeup.readline()
                         for line in calculatedShakeup:
                             if "ListEnd" in line:
@@ -659,7 +676,7 @@ def checkPartial():
                                 last_calculated_state_shakeup = [tuple(int(qn) for qn in line.strip().split(", "))]
                             
                             if not complete_shakeup:
-                                calculateShakeupStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
+                                calculatedShakeupStates.append([tuple(int(qn) for qn in line.strip().split(", "))])
             else:
                 print("\n Warning reading of the Shake-up states was requested but the calculation was never performed for these!!!")
         
@@ -849,10 +866,10 @@ def checkPartial():
         
         
         # Flow control flags
-        log_1hole_found = False
-        log_2hole_found = False
-        log_3hole_found = False
-        log_shakeup_found = False
+        complete_1hole = False
+        complete_2holes = False
+        complete_3holes = False
+        complete_shakeup = False
         
         sorted_1hole_found = False
         sorted_2hole_found = False
@@ -873,13 +890,13 @@ def checkPartial():
             print("\nFound file with the list of discovered 1 hole states.")
             
             # Read the state list and get flags to perform some more flow control
-            complete_1hole, _, _, _, last_calculated_cycle_1hole, last_calculated_state_1hole, \
+            log_1hole_found, _, _, _, last_calculated_cycle_1hole, last_calculated_state_1hole, \
             _, _, _, _, _, _ = readStateList(True)
             
             # Check if all state discovery lists are complete
             # Also check if the last calculated cycles and states are the expected ones    
-            if complete_1hole and last_calculated_cycle_1hole == 4 and last_calculated_state_1hole[0] == calculated1holeStates[-1][0]:
-                log_1hole_found = True
+            if log_1hole_found and last_calculated_cycle_1hole == 4 and last_calculated_state_1hole[0] == calculated1holeStates[-1][0]:
+                complete_1hole = True
                 print("\nVerifyed that the file with the list of calculated states for 1 hole is consistent.")
                 print("Proceding with this list.")
             else:
@@ -887,7 +904,7 @@ def checkPartial():
                 # This is done because transition files were already found
                 print("\nError while checking the file with calculated states.\n")
                 print("Flag                          -> Value ; Expected:")
-                print("Completed 1 hole              -> " + str(complete_1hole) + " ; True")
+                print("Completed 1 hole              -> " + str(log_1hole_found) + " ; True")
                 print("Last calculated cycle 1 hole  -> " + str(last_calculated_cycle_1hole) + "    ; 4")
                 print("Last calculated state 1 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_1hole[0]]) + " ; " + ', '.join([str(qn) for qn in calculated1holeStates[-1][0]]))
                 
@@ -900,12 +917,12 @@ def checkPartial():
             print("\nFound file with the list of discovered 2 hole states.")
             
             # Read the state list and get flags to perform some more flow control
-            _, complete_2holes, _, _, _, _, last_calculated_cycle_2holes, last_calculated_state_2holes, _, _, _, _ = readStateList(False, True)
+            _, log_2hole_found, _, _, _, _, last_calculated_cycle_2holes, last_calculated_state_2holes, _, _, _, _ = readStateList(False, True)
             
             # Check if all state discovery lists are complete
             # Also check if the last calculated cycles and states are the expected ones    
-            if complete_2holes and last_calculated_cycle_2holes == 4 and last_calculated_state_2holes[0] == calculated2holesStates[-1][0]:
-                log_2hole_found = True
+            if log_2hole_found and last_calculated_cycle_2holes == 4 and last_calculated_state_2holes[0] == calculated2holesStates[-1][0]:
+                complete_2holes = True
                 print("\nVerifyed that the file with the list of calculated states for 2 hole is consistent.")
                 print("Proceding with this list.")
             else:
@@ -913,10 +930,9 @@ def checkPartial():
                 # This is done because transition files were already found
                 print("\nError while checking the file with calculated states.\n")
                 print("Flag                          -> Value ; Expected:")
-                print("Completed 2 hole              -> " + str(complete_2holes) + " ; True")
+                print("Completed 2 hole              -> " + str(log_2hole_found) + " ; True")
                 print("Last calculated cycle 2 hole  -> " + str(last_calculated_cycle_2holes) + "    ; 4")
                 print("Last calculated state 2 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_2holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated2holesStates[-1][0]]))
-                
                 print("\nPicking up from the last calculated states...\n")
         else:
             print("\n Warning the file with the calculated 2 hole states log was not found!!! Redoing this calculation.")
@@ -926,12 +942,12 @@ def checkPartial():
             print("\nFound file with the list of discovered 3 hole states.")
             
             # Read the state list and get flags to perform some more flow control
-            _, _, complete_3holes, _, _, _, _, _, last_calculated_cycle_3holes, last_calculated_state_3holes, _, _ = readStateList(False, False, True)
+            _, _, log_3hole_found, _, _, _, _, _, last_calculated_cycle_3holes, last_calculated_state_3holes, _, _ = readStateList(False, False, True)
             
             # Check if all state discovery lists are complete
             # Also check if the last calculated cycles and states are the expected ones    
-            if complete_3holes and last_calculated_cycle_3holes == 4 and last_calculated_state_3holes[0] == calculated3holesStates[-1][0]:
-                log_3hole_found = True
+            if log_3hole_found and last_calculated_cycle_3holes == 4 and last_calculated_state_3holes[0] == calculated3holesStates[-1][0]:
+                complete_3holes = True
                 print("\nVerifyed that the file with the list of calculated states for 3 hole is consistent.")
                 print("Proceding with this list.")
             else:
@@ -939,7 +955,7 @@ def checkPartial():
                 # This is done because transition files were already found
                 print("\nError while checking the file with calculated states.\n")
                 print("Flag                          -> Value ; Expected:")
-                print("Completed 3 hole              -> " + str(complete_3holes) + " ; True")
+                print("Completed 3 hole              -> " + str(log_3hole_found) + " ; True")
                 print("Last calculated cycle 3 hole  -> " + str(last_calculated_cycle_3holes) + "    ; 4")
                 print("Last calculated state 3 hole  -> " + ', '.join([str(qn) for qn in last_calculated_state_3holes[0]]) + " ; " + ', '.join([str(qn) for qn in calculated3holesStates[-1][0]]))
                 
@@ -952,12 +968,12 @@ def checkPartial():
             print("\nFound file with the list of discovered shake-up states.")
             
             # Read the state list and get flags to perform some more flow control
-            _, _, _, complete_shakeup, _, _, _, _, _, _, last_calculated_cycle_shakeup, last_calculated_state_shakeup = readStateList(False, False, False, True)
+            _, _, _, log_shakeup_found, _, _, _, _, _, _, last_calculated_cycle_shakeup, last_calculated_state_shakeup = readStateList(False, False, False, True)
             
             # Check if all state discovery lists are complete
             # Also check if the last calculated cycles and states are the expected ones    
-            if complete_shakeup and last_calculated_cycle_shakeup == 4 and last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
-                log_shakeup_found = True
+            if log_shakeup_found and last_calculated_cycle_shakeup == 4 and last_calculated_state_shakeup[0] == calculatedShakeupStates[-1][0]:
+                complete_shakeup = True
                 print("\nVerifyed that the file with the list of calculated states for shake-up is consistent.")
                 print("Proceding with this list.")
             else:
@@ -965,7 +981,7 @@ def checkPartial():
                 # This is done because transition files were already found
                 print("\nError while checking the file with calculated states.\n")
                 print("Flag                          -> Value ; Expected:")
-                print("Completed shake-up              -> " + str(complete_3holes) + " ; True")
+                print("Completed shake-up              -> " + str(log_shakeup_found) + " ; True")
                 print("Last calculated cycle shake-up  -> " + str(last_calculated_cycle_shakeup) + "    ; 4")
                 print("Last calculated state shake-up  -> " + ', '.join([str(qn) for qn in last_calculated_state_shakeup[0]]) + " ; " + ', '.join([str(qn) for qn in calculatedShakeupStates[-1][0]]))
                 
@@ -1081,7 +1097,7 @@ def checkPartial():
             print("\n No satellite auger transitions file was found!!!")
         
         
-        log_flags = [log_1hole_found, log_2hole_found, log_3hole_found, log_shakeup_found]
+        log_flags = [complete_1hole, complete_2holes, complete_3holes, complete_shakeup]
         sorted_flags = [sorted_1hole_found, sorted_2hole_found, sorted_3hole_found, sorted_shakeup_found]
         transition_flags = [rad_trans_found, aug_trans_found, shakeoff_trans_found, sat_aug_trans_found, shakeup_trans_found]
         
@@ -1109,7 +1125,7 @@ def checkPartial():
                     print("\n There was an error while reading the state log files!!!")
                     print("\n Trying to pick up from the last calculated states.")
                     
-                    # All log flags shoud be valid, if not then we need to pick up the calculation from where it was stopped
+                    # All log flags should be valid, if not then we need to pick up the calculation from where it was stopped
                     # In this case the first element is 1 to flag that all states are to be recalculation from where it stopped previously
                     return 1, complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
                             last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
@@ -1622,18 +1638,18 @@ def executeBatchStateCalculation(parallel_paths, log_file = '', state_list = [],
                 log.write(log_line_header)
                 log.write(', '.join([str(qn) for qn in state_list[-1][0]]) + "\n")
     else:
-        for pl in range(len(parallel_paths) / parallel_max_paths):
-            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[(pl * parallel_max_paths):((pl + 1) * parallel_max_paths)])], shell=True)
+        for pl in range(int(len(parallel_paths) / parallel_max_paths)):
+            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)])], shell=True)
             
             if log_file != '' and state_list != [] and log_line_header != '':
                 with open(log_file, "a") as log:
                     if pl == 0:
                         log.write(log_line_header)
                     
-                    log.write(', '.join([str(qn) for qn in state_list[((pl + 1) * parallel_max_paths) - 1][0]]) + "\n")
+                    log.write(', '.join([str(qn) for qn in state_list[int((pl + 1) * parallel_max_paths) - 1][0]]) + "\n")
         
         
-        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[((pl + 1) * parallel_max_paths):])], shell=True)
+        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int((pl + 1) * parallel_max_paths):])], shell=True)
         
         if log_file != '' and state_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
@@ -1668,17 +1684,17 @@ def executeBatchTransitionCalculation(parallel_paths, \
             os.remove(wff_dst)
         
     else:
-        for pl in range(len(parallel_paths) / parallel_max_paths):
+        for pl in range(int(len(parallel_paths) / parallel_max_paths)):
             # COPY .f09 WAVEFUNCTION FILES FOR THIS BATCH
-            for wf_src, wf_dst in zip(parallel_initial_src_paths[(pl * parallel_max_paths):((pl + 1) * parallel_max_paths)], parallel_initial_dst_paths[(pl * parallel_max_paths):((pl + 1) * parallel_max_paths)]):
+            for wf_src, wf_dst in zip(parallel_initial_src_paths[int(pl * parallel_max_paths):((pl + 1) * parallel_max_paths)], parallel_initial_dst_paths[(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]):
                 shutil.copy(wf_src, wf_dst)
             
-            for wf_src, wf_dst in zip(parallel_final_src_paths[(pl * parallel_max_paths):((pl + 1) * parallel_max_paths)], parallel_final_dst_paths[(pl * parallel_max_paths):((pl + 1) * parallel_max_paths)]):
+            for wf_src, wf_dst in zip(parallel_final_src_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)], parallel_final_dst_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]):
                 shutil.copy(wf_src, wf_dst)
         
             
             # EXECUTE PARALLEL JOB FOR THIS BATCH
-            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[(pl * parallel_max_paths):((pl + 1) * parallel_max_paths)])], shell=True)
+            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)])], shell=True)
             
             
             # LOG THE CALCULATED STATES IN THIS BATCH
@@ -1687,25 +1703,25 @@ def executeBatchTransitionCalculation(parallel_paths, \
                     if pl == 0:
                         log.write(log_line_header)
                     
-                    log.write(', '.join([str(qn) for qn in state_list[((pl + 1) * parallel_max_paths) - 1][0]]) + " => " + ', '.join([str(qn) for qn in state_list[((pl + 1) * parallel_max_paths) - 1][1]]) + "\n")
+                    log.write(', '.join([str(qn) for qn in state_list[int((pl + 1) * parallel_max_paths) - 1][0]]) + " => " + ', '.join([str(qn) for qn in state_list[int((pl + 1) * parallel_max_paths) - 1][1]]) + "\n")
             
             
             # REMOVE THE .f09 WAVEFUNCTION FILES IN THIS BATCH
-            for wfi_dst, wff_dst in zip(parallel_initial_dst_paths[(pl * parallel_max_paths):((pl + 1) * parallel_max_paths)], parallel_final_dst_paths[(pl * parallel_max_paths):((pl + 1) * parallel_max_paths)]):
+            for wfi_dst, wff_dst in zip(parallel_initial_dst_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)], parallel_final_dst_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]):
                 os.remove(wfi_dst)
                 os.remove(wff_dst)
         
         
         # COPY .f09 WAVEFUNCTION FILES FOR THE LAST BATCH
-        for wf_src, wf_dst in zip(parallel_initial_src_paths[((pl + 1) * parallel_max_paths):], parallel_initial_dst_paths[((pl + 1) * parallel_max_paths):]):
+        for wf_src, wf_dst in zip(parallel_initial_src_paths[int((pl + 1) * parallel_max_paths):], parallel_initial_dst_paths[int((pl + 1) * parallel_max_paths):]):
             shutil.copy(wf_src, wf_dst)
         
-        for wf_src, wf_dst in zip(parallel_final_src_paths[((pl + 1) * parallel_max_paths):], parallel_final_dst_paths[((pl + 1) * parallel_max_paths):]):
+        for wf_src, wf_dst in zip(parallel_final_src_paths[int((pl + 1) * parallel_max_paths):], parallel_final_dst_paths[int((pl + 1) * parallel_max_paths):]):
             shutil.copy(wf_src, wf_dst)
         
         
         # EXECUTE PARALLEL JOB FOR THE LAST BATCH
-        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[((pl + 1) * parallel_max_paths):])], shell=True)
+        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int((pl + 1) * parallel_max_paths):])], shell=True)
         
         
         # COPY .f09 WAVEFUNCTION FILES FOR THE LAST BATCH
@@ -1715,7 +1731,7 @@ def executeBatchTransitionCalculation(parallel_paths, \
         
         
         # REMOVE THE .f09 WAVEFUNCTION FILES FOR THE LAST BATCH
-        for wfi_dst, wff_dst in zip(parallel_initial_dst_paths[((pl + 1) * parallel_max_paths):], parallel_final_dst_paths[((pl + 1) * parallel_max_paths):]):
+        for wfi_dst, wff_dst in zip(parallel_initial_dst_paths[int((pl + 1) * parallel_max_paths):], parallel_final_dst_paths[int((pl + 1) * parallel_max_paths):]):
             os.remove(wfi_dst)
             os.remove(wff_dst)
         
@@ -1941,7 +1957,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
         start_counter = 0
         
         # If the starting cycle is 1 we search for the starting state in the list
-        if starting_cycle == 1:
+        if starting_cycle == 1 or starting_cycle == 0:
             counter = 0
             for state in calculatedStates:
                 if found_cycle1 or starting_state == [(0, 0, 0)]:
