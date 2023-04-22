@@ -403,23 +403,32 @@ def loadElectronConfigs():
             
             b[i] += 1
         
+        
+        with open(file_parameters, "r") as fp:
+            for line in fp:
+                if "3 hole configurations are being calculated!" in line:
+                    calculate_3holes = True
+                if "Shake-up configurations are being calculated!" in line:
+                    calculate_shakeup = True
+        
+        
         print("Element Z=" + atomic_number + "\n")
         print("Atom ground-state Neutral configuration:\n" + configuration_string + "\n")
         print("Number of occupied orbitals = " + str(count) + "\n")
         
         print("\nBoth 3 hole configurations and shake-up configurations were generated.\n")
-        inp = input("Would you like to calculate these configurations? - both, 3holes or shakeup : ").strip()
-        while inp != 'both' and inp != '3holes' and inp != 'shakeup':
-            print("\n keyword must be both, 3holes or shakeup!!!")
-            inp = input("Would you like to calculate this configurations? - both, 3holes or shakeup : ").strip()
-        
-        if inp == 'both':
-            calculate_3holes = True
-            calculate_shakeup = True
-        elif inp == '3holes':
-            calculate_3holes = True
-        elif inp == 'shakeup':
-            calculate_shakeup = True
+        #inp = input("Would you like to calculate these configurations? - both, 3holes or shakeup : ").strip()
+        #while inp != 'both' and inp != '3holes' and inp != 'shakeup':
+        #    print("\n keyword must be both, 3holes or shakeup!!!")
+        #    inp = input("Would you like to calculate this configurations? - both, 3holes or shakeup : ").strip()
+        #
+        #if inp == 'both':
+        #    calculate_3holes = True
+        #    calculate_shakeup = True
+        #elif inp == '3holes':
+        #    calculate_3holes = True
+        #elif inp == 'shakeup':
+        #    calculate_shakeup = True
     else:
         # Check if the files with the configurations for 1 and 2 holes to be read exist
         
@@ -1505,7 +1514,7 @@ def checkOutput(currDir, currFileName):
                 firstOver = True
                 cnt = i + 1
                 while True:
-                    if outputContent[cnt] == "\n":
+                    if outputContent[cnt] == "\n" or "Using Bethe Log for SE of n=" in outputContent[cnt]:
                         break
                     else:
                         try:
@@ -2288,8 +2297,6 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
     executeBatchStateCalculation(parallel_failed, file_cycle_log, calculatedStates[start_counter:], "Fourth Cycle Last Calculated:\n")
     
     
-    by_hand = []
-    
     # -------------- FOURTH CYCLE TO CHECK WHICH STATES NEED TO BE REDONE BY HAND -------------- #
     
     # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
@@ -2328,7 +2335,7 @@ def checkMonopolar(excited_shell_label, jj):
 
 
 def sortCalculatedStates():
-    global calculated1holeStates, calculated2holesStates, calculate3holesStates, calculateShakeupStates
+    global calculated1holeStates, calculated2holesStates, calculated3holesStates, calculatedShakeupStates
     
     calculated1holeStates.sort(key = lambda x: x[1][-1])
     
@@ -2353,18 +2360,6 @@ def sortCalculatedStates():
     
     
     if calculate_shakeup:
-        global shell_array_shakeup, configuration_shakeup
-        
-        shell_array_shakeup += shell_array
-        configuration_shakeup += configuration_1hole
-        
-        states_to_combine = calculated1holeStates[:]
-        
-        for i, state in enumerate(states_to_combine):
-            states_to_combine[i][0][0] = state[0][0] + len(shell_array_shakeup)
-        
-        calculatedShakeupStates += states_to_combine
-        
         calculatedShakeupStates.sort(key = lambda x: x[1][-1])
         
         with open(file_sorted_shakeup, "w") as sorted_shakeup:
@@ -3703,7 +3698,7 @@ def GetParameters():
         if converged and Diff >= 0.0 and Diff <= diffThreshold and overlap < overlapsThreshold:
             del radiative_by_hand[j - deleted_radiative]
             deleted_radiative += 1
-    
+        
     
     if len(radiative_by_hand) == 0:
         print("\n\nAll 1 hole states have converged!\n")
@@ -3729,8 +3724,7 @@ def GetParameters():
         if converged and Diff >= 0.0 and Diff <= diffThreshold and overlap < overlapsThreshold:
             del auger_by_hand[j - deleted_auger]
             deleted_auger += 1
-    
-    
+        
     if len(auger_by_hand) == 0:
         print("\n\nAll 2 hole states have converged!\n")
     
@@ -3755,8 +3749,7 @@ def GetParameters():
             if converged and Diff >= 0.0 and Diff <= diffThreshold and overlap < overlapsThreshold:
                 del sat_auger_by_hand[j - deleted_sat_auger]
                 deleted_sat_auger += 1
-        
-        
+            
         if len(sat_auger_by_hand) == 0:
             print("\n\nAll 3 hole states have converged!\n")
         
@@ -3781,8 +3774,7 @@ def GetParameters():
             if converged and Diff >= 0.0 and Diff <= diffThreshold and overlap < overlapsThreshold:
                 del shakeup_by_hand[j - deleted_shakeup]
                 deleted_shakeup += 1
-        
-        
+            
         if len(shakeup_by_hand) == 0:
             print("\n\nAll shake-up states have converged!\n")
         
@@ -3790,6 +3782,13 @@ def GetParameters():
     
 
 def loadParameters():
+    global radiative_by_hand, auger_by_hand, sat_auger_by_hand, shakeup_by_hand
+
+    radiative_by_hand = []
+    auger_by_hand = []
+    sat_auger_by_hand = []
+    shakeup_by_hand = []
+    
     for counter, state in enumerate(calculated1holeStates):
         i, jj, eigv = state[0]
         
@@ -3799,6 +3798,9 @@ def loadParameters():
         converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
         
         calculated1holeStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+        
+        if not converged or Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+            radiative_by_hand.append(counter)
     
     print("\nLoaded 1 hole states parameters.")
     
@@ -3812,6 +3814,9 @@ def loadParameters():
         converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
         
         calculated2holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+        
+        if not converged or Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+            auger_by_hand.append(counter)
     
     print("\nLoaded 2 holes states parameters.\n")
     
@@ -3826,6 +3831,9 @@ def loadParameters():
             converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
             
             calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+            
+            if not converged or Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                sat_auger_by_hand.append(counter)
         
         print("\nLoaded 3 holes states parameters.\n")
     
@@ -3840,11 +3848,14 @@ def loadParameters():
             converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
             
             calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-        
+
+            if not converged or Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
+                shakeup_by_hand.append(counter)
+                
         print("\nLoaded shake-up states parameters.\n")
     
-
-
+    
+    
 def initializeEnergyCalc():
     global label_auto, atomic_number, nuc_massyorn, nuc_mass, nuc_model, machine_type, number_max_of_threads, number_of_threads, directory_name
 
@@ -4459,9 +4470,12 @@ def InitialPrompt():
 
 def midPrompt(partial_check=False):
     if not partial_check:
-        print("\n\nPlease check for convergence of the 1 and 2 holes states.")
-        print("File " + file_final_results + " contains the results for both calculations, as well as a list of flagged states.")
+        print("\n\nPlease check for convergence of states!!!")
+        print("File " + file_final_results + " contains the results for all calculations, as well as a list of flagged states.")
         print("Files " + file_final_results_1hole + " and " + file_final_results_2holes + "contain the results 1 and 2 holes respectively, as well as a list of flagged states.")
+        if calculate_3holes and calculate_shakeup:
+            print("Files " + file_final_results_3holes + " and " + file_final_results_shakeup + "contain the results 3 holes and shakeup respectively, as well as a list of flagged states.")
+        
         #print("A helper script \"checkConvergence.py\" can also be used to check the convergence before continuing.")
         #print("This script will tell you which states did not reach proper convergence.\n")
         
@@ -4472,10 +4486,17 @@ def midPrompt(partial_check=False):
         print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
         print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
         inp = input().strip()
-        while inp != "Continue" and inp != "All" and inp != "Simple" and inp != "rates_all" and inp != "rates":
+        while inp != "All" and inp != "Simple" and inp != "rates_all" and inp != "rates":
             if inp == "GetParameters":
                 GetParameters()
-                print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
+                if calculate_shakeup and calculate_3holes:
+                    print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_3holes + ", " + file_final_results_shakeup + ", for all states.\n\n")
+                elif calculate_3holes:
+                    print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_3holes + ", for 1, 2 and 3 holes states.\n\n")
+                elif calculate_shakeup:
+                    print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_shakeup + ", for 1, 2 holes and shakeup states.\n\n")
+                else:
+                    print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
             
             print("To recheck flagged states please type GetParameters.")
             print("If you would like to continue the rates calculation with the current states please type Continue.\n")
@@ -4484,34 +4505,74 @@ def midPrompt(partial_check=False):
 
         type_calc = inp
         
-        print("Continuing rate calculation with the current 1 and 2 holes states.\n")
+        print("Continuing rate calculation with the current states.\n")
         
         with open(file_parameters, "a") as fp:
             fp.write("\nCalculation performed for: " + type_calc + "\n")
         
         print(80*"-" + "\n")
     else:
+        loadParameters()
+        GetParameters()
+        
+        print("\n\n All states have been re-checked for convergence and an updated list of states that need to be bone by hand was generated.")
+        print("\nPlease re-check for convergence of states!!!")
+        print("File " + file_final_results + " contains the results for all calculations, as well as a list of flagged states.")
+        print("Files " + file_final_results_1hole + " and " + file_final_results_2holes + "contain the results 1 and 2 holes respectively, as well as a list of flagged states.")
+        if calculate_3holes and calculate_shakeup:
+            print("Files " + file_final_results_3holes + " and " + file_final_results_shakeup + "contain the results 3 holes and shakeup respectively, as well as a list of flagged states.")
+        
+        
+        print("To re-update the flagged states please type GetParameters.")
+        print("If you would like to continue the rates calculation with the current states please type continue\n")
+        inp = input().strip()
+        while inp != "continue":
+            if inp == "GetParameters":
+                GetParameters()
+                if calculate_shakeup and calculate_3holes:
+                    print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_3holes + ", " + file_final_results_shakeup + ", for all states.\n\n")
+                elif calculate_3holes:
+                    print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_3holes + ", for 1, 2 and 3 holes states.\n\n")
+                elif calculate_shakeup:
+                    print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_shakeup + ", for 1, 2 holes and shakeup states.\n\n")
+                else:
+                    print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
+            
+            print("To recheck flagged states please type GetParameters.")
+            print("If you would like to continue the rates calculation with the current states please type Continue.\n")
+            inp = input().strip()
+        
+        
+        type_calc = ''
         with open(file_parameters, "r") as fp:
             for line in fp:
                 if "Calculation performed for: " in line:
                     type_calc = line.replace("Calculation performed for: ", "").strip()
         
-        prev_type_calc = type_calc
-        
-        print("\nCalculation was previously loaded as: " + type_calc)
-        inp = input("Would you like to proceed with this configuration? (y or n): ").strip()
-        while inp != "y" and inp != "n":
-            print("\n must be y or n!!!")
+        if type_calc != '':
+            prev_type_calc = type_calc
+            
+            print("\nCalculation was previously loaded as: " + type_calc)
             inp = input("Would you like to proceed with this configuration? (y or n): ").strip()
+            while inp != "y" and inp != "n":
+                print("\n must be y or n!!!")
+                inp = input("Would you like to proceed with this configuration? (y or n): ").strip()
+        else:
+            inp = "n"
+            prev_type_calc = ''
+        
         
         if inp == "n":
-            print("Choose a new type of calculation:\n")
+            if prev_type_calc == '':
+                print("\n\nNo type of calculation was previously loaded!!!\n")
+            
+            print("\nChoose a new type of calculation:\n")
             print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
             print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
             print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
             print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
             inp = input().strip()
-            while inp != "Continue" and inp != "All" and inp != "Simple" and inp != "rates_all" and inp != "rates":
+            while inp != "All" and inp != "Simple" and inp != "rates_all" and inp != "rates":
                 print("Must be either: All, Simple, rates_all or rates!!!\n")
                 print("Choose a new type of calculation:\n")
                 print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
@@ -4522,14 +4583,18 @@ def midPrompt(partial_check=False):
             
             type_calc = inp
             
-            parametersFileString = ''
-            
-            with open(file_parameters, "r") as fp:
-                parametersFileString = ''.join(fp.readlines())
-            
-            with open(file_parameters, "w") as fp:
-                fp.write(parametersFileString.replace("Calculation performed for: " + prev_type_calc, "Calculation performed for: " + type_calc))
-        
+            if prev_type_calc != '':
+                parametersFileString = ''
+                
+                with open(file_parameters, "r") as fp:
+                    parametersFileString = ''.join(fp.readlines())
+                
+                with open(file_parameters, "w") as fp:
+                    fp.write(parametersFileString.replace("Calculation performed for: " + prev_type_calc, "Calculation performed for: " + type_calc))
+            else:
+                with open(file_parameters, "a") as fp:
+                    fp.write("\nCalculation performed for: " + type_calc + "\n")
+
     
     return type_calc
 
@@ -4652,10 +4717,12 @@ if __name__ == "__main__":
                 # 1 flags that we can proceed with the calculation from the current log cycles and start with sorting them
                 # This does not require more configuration, we just need to load the parameters from the states in the list
                 loadParameters()
+                redo_transitions = True
             elif flags == 2:
                 # 2 flags that we can proceed with the calculation from the current sorted states list and start calculating the transitions
                 # We only need to set resort to false. The parameters have already been read in the checkPartial
                 resort = False
+                redo_transitions = True
             elif flags == -1:
                 # Default case. We revert to full calculation
                 partial = False
@@ -4838,11 +4905,28 @@ if __name__ == "__main__":
             calculateStates(shell_array_shakeup, "shakeup", configuration_shakeup, int(nelectrons), calculatedShakeupStates, \
                             file_cycle_log_shakeup, "Shake-up states discovery done.\nList of all discovered states:\n", "Shake-up", \
                             writeResultsShakeup, shakeup_by_hand, True, last_calculated_cycle_shakeup, last_calculated_state_shakeup)
+        
+        redo_transitions = True
+        
+        redo_rad = True
+        redo_aug = True
+        redo_sat = True
+        redo_shakeup = True
+        redo_sat_aug = True
     
     
     if resort:
         print("\nSorting lists of states...")
         sortCalculatedStates()
+        
+        if partial:
+            redo_transitions = True
+            
+            redo_rad = True
+            redo_aug = True
+            redo_sat = True
+            redo_shakeup = True
+            redo_sat_aug = True
     
     
     if not partial:
