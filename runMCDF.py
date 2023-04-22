@@ -1453,7 +1453,6 @@ def checkPartial():
 
 
 
-
 def checkOutput(currDir, currFileName):
     first = False
     firstOver = False
@@ -1472,6 +1471,8 @@ def checkOutput(currDir, currFileName):
     higher_config = ''
     
     failed_orbital = ''
+    
+    remaining_orbs = ''
     
     good_overlaps = True
     
@@ -1497,7 +1498,7 @@ def checkOutput(currDir, currFileName):
                 
                 if percents != []:
                     highest = max(percents, key=lambda x: x[1])
-                    higher_config += ' ' + highest[0]
+                    remaining_orbs = highest[0]
                     highest_percent = highest[1]
             
             if "Variation of eigenenergy for the last" in line:
@@ -1537,6 +1538,9 @@ def checkOutput(currDir, currFileName):
             
             if "For orbital" in line:
                 failed_orbital = line.strip().split()[-1].strip()
+    
+    
+    higher_config += ' ' + remaining_orbs
     
     if not good_overlaps:
         print("Error reading overlaps for: " + currFileName + ".f06")
@@ -1775,8 +1779,8 @@ def writeResults1hole(update=False):
                         stateResults.write(shell_array[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
                 
                 if len(radiative_by_hand) > 0:
-                    stateResults_1hole.write("1 Hole by Hand\n")
-                    stateResults.write("1 Hole by Hand\n")
+                    stateResults_1hole.write("1 Hole by Hand (" + str(len(radiative_by_hand)) + ")\n")
+                    stateResults.write("1 Hole by Hand (" + str(len(radiative_by_hand)) + ")\n")
                     for counter in radiative_by_hand:
                         stateResults_1hole.write(shell_array[calculated1holeStates[counter][0][0]] + ", " + str(calculated1holeStates[counter][0][0]) + ", " + str(calculated1holeStates[counter][0][1]) + ", " + str(calculated1holeStates[counter][0][2]) + ", " + calculated1holeStates[counter][1][0] + ", " + str(calculated1holeStates[counter][1][1]) + ", " + str(calculated1holeStates[counter][1][2]) + ", " + str(calculated1holeStates[counter][1][3]) + ", " + str(calculated1holeStates[counter][1][4]) + ", " + str(calculated1holeStates[counter][1][5]) + "\n")
                         stateResults.write(shell_array[calculated1holeStates[counter][0][0]] + ", " + str(calculated1holeStates[counter][0][0]) + ", " + str(calculated1holeStates[counter][0][1]) + ", " + str(calculated1holeStates[counter][0][2]) + ", " + calculated1holeStates[counter][1][0] + ", " + str(calculated1holeStates[counter][1][1]) + ", " + str(calculated1holeStates[counter][1][2]) + ", " + str(calculated1holeStates[counter][1][3]) + ", " + str(calculated1holeStates[counter][1][4]) + ", " + str(calculated1holeStates[counter][1][5]) + "\n")
@@ -1803,8 +1807,8 @@ def writeResults2holes(update=False):
                         stateResults.write(shell_array_2holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
                 
                 if len(auger_by_hand) > 0:
-                    stateResults_2holes.write("2 Hole by Hand\n")
-                    stateResults.write("2 Hole by Hand\n")
+                    stateResults_2holes.write("2 Hole by Hand (" + str(len(auger_by_hand)) + ")\n")
+                    stateResults.write("2 Hole by Hand (" + str(len(auger_by_hand)) + ")\n")
                     for counter in auger_by_hand:
                         stateResults_2holes.write(shell_array_2holes[calculated2holesStates[counter][0][0]] + ", " + str(calculated2holesStates[counter][0][0]) + ", " + str(calculated2holesStates[counter][0][1]) + ", " + str(calculated2holesStates[counter][0][2]) + ", " + calculated2holesStates[counter][1][0] + ", " + str(calculated2holesStates[counter][1][1]) + ", " + str(calculated2holesStates[counter][1][2]) + ", " + str(calculated2holesStates[counter][1][3]) + ", " + str(calculated2holesStates[counter][1][4]) + ", " + str(calculated2holesStates[counter][1][5]) + "\n")
                         stateResults.write(shell_array_2holes[calculated2holesStates[counter][0][0]] + ", " + str(calculated2holesStates[counter][0][0]) + ", " + str(calculated2holesStates[counter][0][1]) + ", " + str(calculated2holesStates[counter][0][2]) + ", " + calculated2holesStates[counter][1][0] + ", " + str(calculated2holesStates[counter][1][1]) + ", " + str(calculated2holesStates[counter][1][2]) + ", " + str(calculated2holesStates[counter][1][3]) + ", " + str(calculated2holesStates[counter][1][4]) + ", " + str(calculated2holesStates[counter][1][5]) + "\n")
@@ -1831,8 +1835,8 @@ def writeResults3holes(update=False):
                         stateResults.write(shell_array_3holes[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
                 
                 if len(sat_auger_by_hand) > 0:
-                    stateResults_3holes.write("3 Hole by Hand\n")
-                    stateResults.write("3 Hole by Hand\n")
+                    stateResults_3holes.write("3 Hole by Hand (" + str(len(sat_auger_by_hand)) + ")\n")
+                    stateResults.write("3 Hole by Hand (" + str(len(sat_auger_by_hand)) + ")\n")
                     for counter in sat_auger_by_hand:
                         stateResults_3holes.write(shell_array_3holes[calculated3holesStates[counter][0][0]] + ", " + str(calculated3holesStates[counter][0][0]) + ", " + str(calculated3holesStates[counter][0][1]) + ", " + str(calculated3holesStates[counter][0][2]) + ", " + calculated3holesStates[counter][1][0] + ", " + str(calculated3holesStates[counter][1][1]) + ", " + str(calculated3holesStates[counter][1][2]) + ", " + str(calculated3holesStates[counter][1][3]) + ", " + str(calculated3holesStates[counter][1][4]) + ", " + str(calculated3holesStates[counter][1][5]) + "\n")
                         stateResults.write(shell_array_3holes[calculated3holesStates[counter][0][0]] + ", " + str(calculated3holesStates[counter][0][0]) + ", " + str(calculated3holesStates[counter][0][1]) + ", " + str(calculated3holesStates[counter][0][2]) + ", " + calculated3holesStates[counter][1][0] + ", " + str(calculated3holesStates[counter][1][1]) + ", " + str(calculated3holesStates[counter][1][2]) + ", " + str(calculated3holesStates[counter][1][3]) + ", " + str(calculated3holesStates[counter][1][4]) + ", " + str(calculated3holesStates[counter][1][5]) + "\n")
@@ -1859,8 +1863,8 @@ def writeResultsShakeup(update=False):
                         stateResults.write(shell_array_shakeup[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
                 
                 if len(shakeup_by_hand) > 0:
-                    stateResults_shakeup.write("Shake-up by Hand\n")
-                    stateResults.write("Shake-up by Hand\n")
+                    stateResults_shakeup.write("Shake-up by Hand (" + str(len(shakeup_by_hand)) + ")\n")
+                    stateResults.write("Shake-up by Hand (" + str(len(shakeup_by_hand)) + ")\n")
                     for counter in shakeup_by_hand:
                         stateResults_shakeup.write(shell_array_shakeup[calculatedShakeupStates[counter][0][0]] + ", " + str(calculatedShakeupStates[counter][0][0]) + ", " + str(calculatedShakeupStates[counter][0][1]) + ", " + str(calculatedShakeupStates[counter][0][2]) + ", " + calculatedShakeupStates[counter][1][0] + ", " + str(calculatedShakeupStates[counter][1][1]) + ", " + str(calculatedShakeupStates[counter][1][2]) + ", " + str(calculatedShakeupStates[counter][1][3]) + ", " + str(calculatedShakeupStates[counter][1][4]) + ", " + str(calculatedShakeupStates[counter][1][5]) + "\n")
                         stateResults.write(shell_array_shakeup[calculatedShakeupStates[counter][0][0]] + ", " + str(calculatedShakeupStates[counter][0][0]) + ", " + str(calculatedShakeupStates[counter][0][1]) + ", " + str(calculatedShakeupStates[counter][0][2]) + ", " + calculatedShakeupStates[counter][1][0] + ", " + str(calculatedShakeupStates[counter][1][1]) + ", " + str(calculatedShakeupStates[counter][1][2]) + ", " + str(calculatedShakeupStates[counter][1][3]) + ", " + str(calculatedShakeupStates[counter][1][4]) + ", " + str(calculatedShakeupStates[counter][1][5]) + "\n")
