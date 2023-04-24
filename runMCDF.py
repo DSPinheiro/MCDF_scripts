@@ -852,10 +852,10 @@ def checkPartial():
         complete_3holes = False
         complete_shakeup = False
         
-        last_calculated_cycle_1hole = 0
-        last_calculated_cycle_2holes = 0
-        last_calculated_cycle_3holes = 0
-        last_calculated_cycle_shakeup = 0
+        last_calculated_cycle_1hole = -1
+        last_calculated_cycle_2holes = -1
+        last_calculated_cycle_3holes = -1
+        last_calculated_cycle_shakeup = -1
         
         last_calculated_state_1hole = [(0, 0, 0)]
         last_calculated_state_2holes = [(0, 0, 0)]
@@ -1658,14 +1658,14 @@ def configureStateInputFile(template, currDir, currFileName, config, jj, eigv, f
 def executeBatchStateCalculation(parallel_paths, log_file = '', state_list = [], log_line_header = ''):
     parallel_max_paths = (len(parallel_paths) * parallel_max_length / len(' '.join(parallel_paths))) / 17
     if len(parallel_paths) < parallel_max_paths:
-        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths)], shell=True)
+        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths) + ' >/dev/null'], shell=True)
         if log_file != '' and state_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
                 log.write(log_line_header)
                 log.write(', '.join([str(qn) for qn in state_list[-1][0]]) + "\n")
     else:
         for pl in range(int(len(parallel_paths) / parallel_max_paths)):
-            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)])], shell=True)
+            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]) + ' >/dev/null'], shell=True)
             
             if log_file != '' and state_list != [] and log_line_header != '':
                 with open(log_file, "a") as log:
@@ -1675,7 +1675,7 @@ def executeBatchStateCalculation(parallel_paths, log_file = '', state_list = [],
                     log.write(', '.join([str(qn) for qn in state_list[int((pl + 1) * parallel_max_paths) - 1][0]]) + "\n")
         
         
-        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int((pl + 1) * parallel_max_paths):])], shell=True)
+        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int((pl + 1) * parallel_max_paths):]) + ' >/dev/null'], shell=True)
         
         if log_file != '' and state_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
@@ -1696,7 +1696,7 @@ def executeBatchTransitionCalculation(parallel_paths, \
             shutil.copy(wf_src, wf_dst)
         
         # EXECUTE PARALLEL JOB
-        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths)], shell=True)
+        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths) + ' >/dev/null'], shell=True)
         
         # LOG THE CALCULATED STATES
         if log_file != '' and state_list != [] and log_line_header != '':
@@ -1720,7 +1720,7 @@ def executeBatchTransitionCalculation(parallel_paths, \
         
             
             # EXECUTE PARALLEL JOB FOR THIS BATCH
-            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)])], shell=True)
+            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]) + ' >/dev/null'], shell=True)
             
             
             # LOG THE CALCULATED STATES IN THIS BATCH
@@ -1747,7 +1747,7 @@ def executeBatchTransitionCalculation(parallel_paths, \
         
         
         # EXECUTE PARALLEL JOB FOR THE LAST BATCH
-        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int((pl + 1) * parallel_max_paths):])], shell=True)
+        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int((pl + 1) * parallel_max_paths):]) + ' >/dev/null'], shell=True)
         
         
         # COPY .f09 WAVEFUNCTION FILES FOR THE LAST BATCH
@@ -1874,7 +1874,7 @@ def writeResultsTransition(rates_file, transition_mod,
 
 def calculateStates(shell_labels, sub_dir, electron_configurations, electron_number, calculatedStates, \
                     file_cycle_log, log_header, resultDump_mod, writeResults, by_hand, \
-                    shakeup_configs = False, starting_cycle = -1, starting_state = [(0, 0, 0)]):
+                    starting_cycle = -1, starting_state = [(0, 0, 0)]):
     jj_vals = []
     
     parallel_paths = []
@@ -1914,11 +1914,6 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                         maxJJi = int(line.split("!!!!! For state # 1 and configuration   1 highest 2Jz possible value is")[1].split()[0].strip())
             
             for jj in range(0 if maxJJi % 2 == 0 else 1, maxJJi + 1, 2):
-                if shakeup_configs:
-                    # Filter for monopolar excitations
-                    if not checkMonopolar(shell_labels[i], jj):
-                        continue
-                
                 jj_vals.append((i, jj))
                 
                 currDir = rootDir + "/" + directory_name + "/" + sub_dir + "/" + shell_labels[i] + "/2jj_" + str(jj)
@@ -2411,7 +2406,7 @@ def readTransition(currDir, currFileName, radiative = True):
 
 def rates(calculatedStates, calculatedTransitions, \
             transitions_dir, states_dir, file_transitions_log, rates_file, transition_mod, \
-            shell_labels, configurations, electron_num, \
+            shell_labels, configurations, electron_num, shakeup_configs = False, \
             starting_transition = [(0, 0, 0), (0, 0, 0)]):
     
     calculatedTransitions.clear()
@@ -2430,6 +2425,12 @@ def rates(calculatedStates, calculatedTransitions, \
     for counter, state_f in enumerate(calculatedStates):
         for state_i in calculatedStates[(counter + 1):]:
             i, jj_i, eigv_i = state_i[0]
+            
+            if shakeup_configs:
+                # Filter for monopolar excitations
+                if not checkMonopolar(shell_labels[i], jj_i):
+                    continue
+            
             f, jj_f, eigv_f = state_f[0]
             
             calculatedTransitions.append([(i, jj_i, eigv_i), (f, jj_f, eigv_f)])
@@ -4546,56 +4547,56 @@ if __name__ == "__main__":
     if not partial:
         calculateStates(shell_array, "radiative", configuration_1hole, int(nelectrons), calculated1holeStates, \
                         file_cycle_log_1hole, "1 hole states discovery done.\nList of all discovered states:\n", "1 Hole", \
-                        partial_f(writeResultsState(file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
-                                                    calculated1holeStates, shell_array, radiative_by_hand, True)
+                        partial_f(writeResultsState, file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
+                                                    calculated1holeStates, shell_array, radiative_by_hand, True
                                 ), radiative_by_hand)
         
         calculateStates(shell_array_2holes, "auger", configuration_2holes, int(nelectrons) - 1, calculated2holesStates, \
                         file_cycle_log_2holes, "2 hole states discovery done.\nList of all discovered states:\n", "2 Hole", \
-                        partial_f(writeResultsState(file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
-                                                    calculated2holesStates, shell_array_2holes, auger_by_hand, True)
+                        partial_f(writeResultsState, file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
+                                                    calculated2holesStates, shell_array_2holes, auger_by_hand, True
                                 ), auger_by_hand)
         if calculate_3holes:
             calculateStates(shell_array_3holes, "3holes", configuration_3holes, int(nelectrons) - 2, calculated3holesStates, \
                             file_cycle_log_3holes, "3 holes states discovery done.\nList of all discovered states:\n", "3 Hole", \
-                            partial_f(writeResultsState(file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
-                                                        calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True)
+                            partial_f(writeResultsState, file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
+                                                        calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True
                                     ), sat_auger_by_hand)
         if calculate_shakeup:
             calculateStates(shell_array_shakeup, "shakeup", configuration_shakeup, int(nelectrons), calculatedShakeupStates, \
                             file_cycle_log_shakeup, "Shake-up states discovery done.\nList of all discovered states:\n", "Shake-up", \
-                            partial_f(writeResultsState(file_cycle_log_shakeup, file_final_results_shakeup, "Shake-up", \
-                                                        calculatedShakeupStates, shell_array_shakeup, shakeup_by_hand, True)
-                                    ), shakeup_by_hand, True)
+                            partial_f(writeResultsState, file_cycle_log_shakeup, file_final_results_shakeup, "Shake-up", \
+                                                        calculatedShakeupStates, shell_array_shakeup, shakeup_by_hand, True
+                                    ), shakeup_by_hand)
         
         type_calc = midPrompt()
     elif redo_energy_calc:
         if not complete_1hole:
             calculateStates(shell_array, "radiative", configuration_1hole, int(nelectrons), calculated1holeStates, \
                         file_cycle_log_1hole, "1 hole states discovery done.\nList of all discovered states:\n", "1 Hole", \
-                        partial_f(writeResultsState(file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
-                                                    calculated1holeStates, shell_array, radiative_by_hand, True)
-                                ), radiative_by_hand, False, last_calculated_cycle_1hole, last_calculated_state_1hole)
+                        partial_f(writeResultsState, file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
+                                                    calculated1holeStates, shell_array, radiative_by_hand, True
+                                ), radiative_by_hand, last_calculated_cycle_1hole, last_calculated_state_1hole)
         if not complete_2holes:
             calculateStates(shell_array_2holes, "auger", configuration_2holes, int(nelectrons) - 1, calculated2holesStates, \
                         file_cycle_log_2holes, "2 hole states discovery done.\nList of all discovered states:\n", "2 Hole", \
-                        partial_f(writeResultsState(file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
-                                                    calculated2holesStates, shell_array_2holes, auger_by_hand, True)
-                                ), auger_by_hand, False, last_calculated_cycle_2holes, last_calculated_state_2holes)
+                        partial_f(writeResultsState, file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
+                                                    calculated2holesStates, shell_array_2holes, auger_by_hand, True
+                                ), auger_by_hand, last_calculated_cycle_2holes, last_calculated_state_2holes)
         
         if not complete_3holes and calculate_3holes:
             calculateStates(shell_array_3holes, "3holes", configuration_3holes, int(nelectrons) - 2, calculated3holesStates, \
                             file_cycle_log_3holes, "3 holes states discovery done.\nList of all discovered states:\n", "3 Hole", \
-                            partial_f(writeResultsState(file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
-                                                        calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True)
-                                    ), sat_auger_by_hand, False, last_calculated_cycle_3holes, last_calculated_state_3holes)
+                            partial_f(writeResultsState, file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
+                                                        calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True
+                                    ), sat_auger_by_hand, last_calculated_cycle_3holes, last_calculated_state_3holes)
         
         if not complete_shakeup and calculate_shakeup:
             calculateStates(shell_array_shakeup, "shakeup", configuration_shakeup, int(nelectrons), calculatedShakeupStates, \
                             file_cycle_log_shakeup, "Shake-up states discovery done.\nList of all discovered states:\n", "Shake-up", \
-                            partial_f(writeResultsState(file_cycle_log_shakeup, file_final_results_shakeup, "Shake-up", \
-                                                        calculatedShakeupStates, shell_array_shakeup, shakeup_by_hand, True)
-                                    ), shakeup_by_hand, True, last_calculated_cycle_shakeup, last_calculated_state_shakeup)
+                            partial_f(writeResultsState, file_cycle_log_shakeup, file_final_results_shakeup, "Shake-up", \
+                                                        calculatedShakeupStates, shell_array_shakeup, shakeup_by_hand, True
+                                    ), shakeup_by_hand, last_calculated_cycle_shakeup, last_calculated_state_shakeup)
         
         redo_transitions = True
         
@@ -4645,7 +4646,7 @@ if __name__ == "__main__":
             if calculate_shakeup:
                 rates(calculatedShakeupStates, calculatedShakeupTransitions, \
                     "shakeup", "shakeup", file_calculated_shakeup, file_rates_shakeup, "Shake-up", \
-                    shell_array_shakeup, configuration_shakeup, nelectrons)
+                    shell_array_shakeup, configuration_shakeup, nelectrons, True)
                 shakeup_done = True
             
     elif redo_transitions:
@@ -4703,16 +4704,16 @@ if __name__ == "__main__":
             if redo_shakeup:
                 rates(calculatedShakeupStates, calculatedShakeupTransitions, \
                     "shakeup", "shakeup", file_calculated_shakeup, file_rates_shakeup, "Shake-up", \
-                    shell_array_shakeup, configuration_shakeup, nelectrons)
+                    shell_array_shakeup, configuration_shakeup, nelectrons, True)
                 shakeup_done = True
             elif partial_shakeup:
                 rates(calculatedShakeupStates, calculatedShakeupTransitions, \
                     "shakeup", "shakeup", file_calculated_shakeup, file_rates_shakeup, "Shake-up", \
-                    shell_array_shakeup, configuration_shakeup, nelectrons, \
+                    shell_array_shakeup, configuration_shakeup, nelectrons, True, \
                     last_shakeup_calculated)
                 shakeup_done = True
-       
-       
+
+
     
     if type_calc == "All" or type_calc == "Simple":
         calculateSpectra(radiative_done, auger_done, satellite_done, sat_aug_done, shakeup_done)
