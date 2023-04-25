@@ -2001,6 +2001,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
     
     failed_first_cycle = []
     parallel_failed = []
+    parallel_failed_counters = []
     
     # -------------- FIRST CYCLE FOR CONVERGENCE CHECK -------------- #
     
@@ -2023,15 +2024,19 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                 configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, [], electron_number)
             
                 parallel_failed.append(currDir + "/" + exe_file)
+                parallel_failed_counters.append(counter)
                 failed_first_cycle.append(counter)
             else:
                 if Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
                     configureStateInputFile(f05Template_10steps_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, [], electron_number)
             
                     parallel_failed.append(currDir + "/" + exe_file)
+                    parallel_failed_counters.append(counter)
                     failed_first_cycle.append(counter)
             
             counter += 1
+        
+        parallel_failed_counters.append(counter - 1)
         
         # -------------- PRINT FIRST CYCLE RESULTS -------------- #
         
@@ -2045,9 +2050,6 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
     
     # If no starting cycle has been defined or the starting cycle is 1 or 2
     if starting_cycle < 2:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
         # If the starting cycle is 2 we search for the starting state in the list and fill in the failed_first_cycle list
         if starting_cycle == 1:
             counter = 0
@@ -2066,6 +2068,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                         # Only add this state to the calculation if we reached the starting state
                         if found_cycle2 or starting_state == [(0, 0, 0)]:
                             parallel_failed.append(currDir + "/" + exe_file)
+                            parallel_failed_counters.append(counter)
                         
                         failed_first_cycle.append(counter)
                     else:
@@ -2073,6 +2076,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                             # Only add this state to the calculation if we reached the starting state
                             if found_cycle2 or starting_state == [(0, 0, 0)]:
                                 parallel_failed.append(currDir + "/" + exe_file)
+                                parallel_failed_counters.append(counter)
                             
                             failed_first_cycle.append(counter)
                 
@@ -2081,20 +2085,20 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                 # Search for the starting state
                 if state[0] == starting_state:
                     found_cycle2 = True
-                    start_counter = counter
-                
+            
+            parallel_failed_counters.append(counter - 1)    
         
         if len(parallel_failed) == 0:
             writeResults()
             return
         
         # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_failed, file_cycle_log, calculatedStates[start_counter:], "Second Cycle Last Calculated:\n")
+        executeBatchStateCalculation(parallel_failed, file_cycle_log, [state for i, state in enumerate(calculatedStates) if i in parallel_failed_counters], "Second Cycle Last Calculated:\n")
     
     
     failed_second_cycle = []
     parallel_failed = []
-    
+    parallel_failed_counters = []
     
     # -------------- SECOND CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
     
@@ -2119,6 +2123,8 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                     configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
                     parallel_failed.append(currDir + "/" + exe_file)
+                    parallel_failed_counters.append(counter)
+                    
                 
                 failed_second_cycle.append(counter)
             else:
@@ -2127,9 +2133,11 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                         configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
                         parallel_failed.append(currDir + "/" + exe_file)
+                        parallel_failed_counters.append(counter)
                     
                     failed_second_cycle.append(counter)
-            
+        
+        parallel_failed_counters.append(counter - 1)
         
         # -------------- PRINT SECOND CYCLE RESULTS -------------- #
         
@@ -2141,9 +2149,6 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
     
     # If no starting cycle has been defined or the starting cycle is 1, 2 or 3
     if starting_cycle < 3:
-        # Counter for the first state to be calculated in the state lists
-        start_counter = 0
-        
         # If the starting cycle is 3 we search for the starting state in the list and fill in the failed_second_cycle list
         if starting_cycle == 2:
             counter = 0
@@ -2161,6 +2166,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                     # Only add this state to the calculation if we reached the starting state
                     if found_cycle3 or starting_state == [(0, 0, 0)]:
                         parallel_failed.append(currDir + "/" + exe_file)
+                        parallel_failed_counters.append(counter)
                     
                     failed_second_cycle.append(counter)
                 else:
@@ -2168,6 +2174,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                         # Only add this state to the calculation if we reached the starting state
                         if found_cycle3 or starting_state == [(0, 0, 0)]:
                             parallel_failed.append(currDir + "/" + exe_file)
+                            parallel_failed_counters.append(counter)
                         
                         failed_second_cycle.append(counter)
                 
@@ -2176,19 +2183,20 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                 if state[0] == starting_state:
                     found_cycle3 = True
                     start_counter = counter
-                
+            
+            parallel_failed_counters.append(counter - 1)
         
         if len(parallel_failed) == 0:
             writeResults()
             return
         
         # Execute parallel batch job with logging of calculated state
-        executeBatchStateCalculation(parallel_failed, file_cycle_log, calculatedStates[start_counter:], "Third Cycle Last Calculated:\n")
+        executeBatchStateCalculation(parallel_failed, file_cycle_log, [state for i, state in enumerate(calculatedStates) if i in parallel_failed_counters], "Third Cycle Last Calculated:\n")
     
     
     failed_third_cycle = []
     parallel_failed = []
-    
+    parallel_failed_counters = []
     
     # -------------- THIRD CYCLE FOR CONVERGENCE CHECK WITH FAILED ORBITALS -------------- #
     
@@ -2215,12 +2223,14 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                     configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
                     parallel_failed.append(currDir + "/" + exe_file)
+                    parallel_failed_counters.append(counter)
                 elif len(failed_orbs) == 2:
                     del failed_orbs[0]
                     
                     configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
                     parallel_failed.append(currDir + "/" + exe_file)
+                    parallel_failed_counters.append(counter)
                 
                 failed_third_cycle.append(counter)
             else:
@@ -2229,17 +2239,20 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                         configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
                         parallel_failed.append(currDir + "/" + exe_file)
+                        parallel_failed_counters.append(counter)
                     elif len(failed_orbs) == 2:
                         del failed_orbs[0]
                         
                         configureStateInputFile(f05Template_10steps_Forbs_nuc, currDir, currFileName, electron_configurations[i], jj, eigv, failed_orbs, electron_number)
             
                         parallel_failed.append(currDir + "/" + exe_file)
+                        parallel_failed_counters.append(counter)
                 
                 failed_third_cycle.append(counter)
             
             calculatedStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt, failed_orbs)
             
+        parallel_failed_counters.append(counter - 1)
         
         # -------------- PRINT THIRD CYCLE RESULTS -------------- #
         
@@ -2249,9 +2262,6 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                 resultDump.write(shell_labels[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
     
     
-    # If no starting cycle has been defined or the starting cycle is 1, 2, 3 or 4
-    # Counter for the first state to be calculated in the state lists
-    start_counter = 0
     
     # If the starting cycle is 4 we search for the starting state in the list and fill in the failed_third_cycle list
     if starting_cycle == 4:
@@ -2270,6 +2280,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                 # Only add this state to the calculation if we reached the starting state
                 if found_cycle4 or starting_state == [(0, 0, 0)]:
                     parallel_failed.append(currDir + "/" + exe_file)
+                    parallel_failed_counters.append(counter)
                 
                 failed_third_cycle.append(counter)
             else:
@@ -2277,6 +2288,7 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
                     # Only add this state to the calculation if we reached the starting state
                     if found_cycle4 or starting_state == [(0, 0, 0)]:
                         parallel_failed.append(currDir + "/" + exe_file)
+                        parallel_failed_counters.append(counter)
                     
                     failed_third_cycle.append(counter)
             
@@ -2284,15 +2296,15 @@ def calculateStates(shell_labels, sub_dir, electron_configurations, electron_num
             
             if state[0] == starting_state:
                 found_cycle4 = True
-                start_counter = counter
-            
+        
+        parallel_failed_counters.append(counter - 1)
     
     if len(parallel_failed) == 0:
         writeResults()
         return
     
     # Execute parallel batch job with logging of calculated state
-    executeBatchStateCalculation(parallel_failed, file_cycle_log, calculatedStates[start_counter:], "Fourth Cycle Last Calculated:\n")
+    executeBatchStateCalculation(parallel_failed, file_cycle_log, [state for i, state in enumerate(calculatedStates) if i in parallel_failed_counters], "Fourth Cycle Last Calculated:\n")
     
     
     # -------------- FOURTH CYCLE TO CHECK WHICH STATES NEED TO BE REDONE BY HAND -------------- #
