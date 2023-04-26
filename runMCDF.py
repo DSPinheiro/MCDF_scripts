@@ -165,10 +165,18 @@ configuration_shakeup = []
 # Shells for labeling the LS configuration of shake-up states
 shell_array_shakeup = []
 
+# Electron configurations for the excitation states
+configuration_excitation = []
+# Shells for labeling the LS configuration of excitation states
+shell_array_excitation = []
+
+
 # Flag to control if we can calculate 3 holes state configurations
 exist_3holes = False
 # Flag to control if we can calculate shake-up state configurations
 exist_shakeup = False
+# Flag to control if we can calculate excitation state configurations
+exist_excitation = False
 
 # ------------------------------------------------------------------- #
 #        Variables to manage the calculated 1 and 2 hole states       #
@@ -198,7 +206,8 @@ shakeup_by_hand = []
 calculate_3holes = False
 # Flag to control if we chose to calculate shake-up state configurations
 calculate_shakeup = False
-
+# Flag to control if we chose to calculate excitation state configurations
+calculate_excitation = False
 
 # ------------------------------------------------------------------- #
 #             Variables to manage the calculated transtions           #
@@ -305,7 +314,9 @@ def loadElectronConfigs():
     global configuration_2holes, shell_array_2holes
     global configuration_3holes, shell_array_3holes
     global configuration_shakeup, shell_array_shakeup
-    global exist_3holes, exist_shakeup, calculate_3holes, calculate_shakeup
+    global configuration_excitation, shell_array_excitation
+    global exist_3holes, exist_shakeup, exist_excitation
+    global calculate_3holes, calculate_shakeup, calculate_excitation
     global shells, electronspershell
     
     shells = ['1s', '2s', '2p', '3s', '3p', '3d', '4s', '4p', '4d', '4f', '5s', '5p', '5d', '5f', '5g', '6s', '6p', '6d', '6f', '6g', '6h', '7s', '7p', '7d']
@@ -338,87 +349,47 @@ def loadElectronConfigs():
         
         exist_3holes = True
         exist_shakeup = True
+        exist_excitation = True
         
-        for i in range(len(shell_array)):
-            # Generate the combinations of 1 hole configurations
-            b = electron_array[:]
-            b[i] -= 1
-            
-            if b[i] >= 0:
-                configuration_1hole.append('')
-                
-                for j in range(len(shell_array)):
-                    configuration_1hole[-1] += "(" + shell_array[j] + ")" + str(b[j]) + " "
-                    
-                    if j >= i:
-                        # Generate the combinations of 2 hole configurations                        
-                        b[j] -= 1
-                        
-                        if b[j] >= 0:
-                            shell_array_2holes.append(shell_array[i] + "_" + shell_array[j])
-                            configuration_2holes.append('')
-                            
-                            for h in range(len(shell_array)):
-                                configuration_2holes[-1] += "(" + shell_array[h] + ")" + str(b[h]) + " "
-                                
-                                if h >= j:
-                                    # Generate the combinations of 3 hole configurations
-                                    b[h] -= 1
-                                    
-                                    if b[h] >= 0:
-                                        shell_array_3holes.append(shell_array[i] + "_" + shell_array[j] + "_" + shell_array[h])
-                                        configuration_3holes.append('')
-                                        
-                                        for k in range(len(shell_array)):
-                                            configuration_3holes[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
-                                    
-                                    b[h] += 1
-                            
-                            for h in range(len(shells)):
-                                if h >= j:
-                                    # Generate the combinations of shake-up configurations
-                                    if h < len(shell_array):
-                                        b[h] += 1
-                                    
-                                        if b[h] <= electronspershell[h]:
-                                            shell_array_shakeup.append(shell_array[i] + "_" + shell_array[j] + "-" + shell_array[h])
-                                            configuration_shakeup.append('')
-                                            
-                                            for k, shell in enumerate(shells):
-                                                if k < len(shell_array):
-                                                    configuration_shakeup[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
-                                                elif h == k:
-                                                    configuration_shakeup[-1] += shell + "1 "
-                                        
-                                        b[h] -= 1
-                                    else:
-                                        shell_array_shakeup.append(shell_array[i] + "_" + shell_array[j] + "-" + shells[h])
-                                        configuration_shakeup.append('')
-                                        
-                                        for k, shell in enumerate(shells):
-                                            if k < len(shell_array):
-                                                configuration_shakeup[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
-                                            elif h == k:
-                                                configuration_shakeup[-1] += shell + "1 "
-                        
-                        b[j] += 1
-            
-            b[i] += 1
-        
+        with open(file_automatic_configurations, "r") as auto_configs:
+            for line in auto_configs:
+                if "1 hole:" in line:
+                    vals = line.strip().split(", ")
+                    configuration_1hole = vals[0]
+                    shell_array = vals[1]
+                elif "2 hole:" in line:
+                    vals = line.strip().split(", ")
+                    configuration_2holes = vals[0]
+                    shell_array_2holes = vals[1]
+                elif "3 hole:" in line:
+                    vals = line.strip().split(", ")
+                    configuration_3holes = vals[0]
+                    shell_array_3holes = vals[1]
+                elif "Shake-up:" in line:
+                    vals = line.strip().split(", ")
+                    configuration_shakeup = vals[0]
+                    shell_array_shakeup = vals[1]
+                elif "Excitation:" in line:
+                    vals = line.strip().split(", ")
+                    configuration_excitation = vals[0]
+                    shell_array_excitation = vals[1]
         
         with open(file_parameters, "r") as fp:
             for line in fp:
                 if "3 hole configurations are being calculated!" in line:
                     calculate_3holes = True
-                if "Shake-up configurations are being calculated!" in line:
+                elif "Shake-up configurations are being calculated!" in line:
                     calculate_shakeup = True
+                elif "Excitation configurations are being calculated!" in line:
+                    calculate_excitation = True
+        
         
         
         print("Element Z=" + atomic_number + "\n")
         print("Atom ground-state Neutral configuration:\n" + configuration_string + "\n")
         print("Number of occupied orbitals = " + str(count) + "\n")
         
-        print("\nBoth 3 hole configurations and shake-up configurations were generated.\n")
+        print("\nAll electron configurations were generated.\n")
         #inp = input("Would you like to calculate these configurations? - both, 3holes or shakeup : ").strip()
         #while inp != 'both' and inp != '3holes' and inp != 'shakeup':
         #    print("\n keyword must be both, 3holes or shakeup!!!")
@@ -438,21 +409,33 @@ def loadElectronConfigs():
             configuration_1hole = []
             shell_array = []
             
+            configuration_excitation = []
+            shell_array_excitation = []
+            
             with open(file_conf_rad, "r") as f:
                 for line in f:
                     colum1, colum2 = line.strip().split(",")
                     configuration_1hole.append(colum1)
                     shell_array.append(colum2)
+                    
+                    configuration_excitation.append(colum1)
+                    shell_array_excitation.append(colum2)
                     count += 1
             
             configuration_2holes = []
             shell_array_2holes = []
+            
+            configuration_shakeup = []
+            shell_array_shakeup = []
             
             with open(file_conf_aug, "r") as f:
                 for line in f:
                     colum1, colum2 = line.strip().split(",")
                     configuration_2holes.append(colum1)
                     shell_array_2holes.append(colum2)
+                    
+                    configuration_shakeup.append(colum1)
+                    shell_array_shakeup.append(colum1)
             
             print("Configuration files correctly loaded !!!\n")
         else:
@@ -504,7 +487,8 @@ def checkPartial():
     global directory_name, parallel_max_length, machine_type, number_max_of_threads
     global label_auto, atomic_number, nelectrons, nuc_massyorn, nuc_mass, nuc_model, number_of_threads
     global calculated1holeStates, calculated2holesStates, calculated3holesStates, calculatedShakeupStates
-    global exist_3holes, exist_shakeup, calculate_3holes, calculate_shakeup
+    global exist_3holes, exist_shakeup, exist_excitation
+    global calculate_3holes, calculate_shakeup, calculate_excitation
     
     
     inp = input("Enter directory name for the calculations: ").strip()
@@ -541,6 +525,9 @@ def checkPartial():
             elif "Shake-up configurations are being calculated!" in line:
                 exist_shakeup = True
                 calculate_shakeup = True
+            elif "Excitation configurations are being calculated!" in line:
+                exist_excitation = True
+                calculate_excitation = True
             elif "Atomic number Z= " in line:
                 atomic_number = line.replace("Atomic number Z= ", "").strip()
             elif "Number of electrons:" in line:
@@ -3656,7 +3643,9 @@ def setupElectronConfigs():
     global configuration_2holes, shell_array_2holes
     global configuration_3holes, shell_array_3holes
     global configuration_shakeup, shell_array_shakeup
-    global exist_3holes, exist_shakeup, calculate_3holes, calculate_shakeup
+    global configuration_excitation, shell_array_excitation
+    global exist_3holes, exist_shakeup, exist_excitation
+    global calculate_3holes, calculate_shakeup, calculate_excitation
     global shells, electronspershell
     
     shells = ['1s', '2s', '2p', '3s', '3p', '3d', '4s', '4p', '4d', '4f', '5s', '5p', '5d', '5f', '5g', '6s', '6p', '6d', '6f', '6g', '6h', '7s', '7p', '7d']
@@ -3688,6 +3677,7 @@ def setupElectronConfigs():
         
         exist_3holes = True
         exist_shakeup = True
+        exist_excitation = True
         
         for i in range(len(shell_array)):
             # Generate the combinations of 1 hole configurations
@@ -3752,7 +3742,34 @@ def setupElectronConfigs():
                                                 configuration_shakeup[-1] += shell + "1 "
                         
                         b[j] += 1
-            
+
+                for h in range(len(shells)):
+                    if h >= j:
+                        # Generate the combinations of excitation configurations
+                        if h < len(shell_array):
+                            b[h] += 1
+                        
+                            if b[h] <= electronspershell[h]:
+                                shell_array_excitation.append(shell_array[i] + "-" + shell_array[h])
+                                configuration_excitation.append('')
+                                
+                                for k, shell in enumerate(shells):
+                                    if k < len(shell_array):
+                                        configuration_excitation[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
+                                    elif h == k:
+                                        configuration_excitation[-1] += shell + "1 "
+                            
+                            b[h] -= 1
+                        else:
+                            shell_array_excitation.append(shell_array[i] + "-" + shells[h])
+                            configuration_excitation.append('')
+                            
+                            for k, shell in enumerate(shells):
+                                if k < len(shell_array):
+                                    configuration_excitation[-1] += "(" + shell_array[k] + ")" + str(b[k]) + " "
+                                elif h == k:
+                                    configuration_excitation[-1] += shell + "1 "
+                
             b[i] += 1
         
         with open(file_automatic_configurations, "w") as auto_configs:
@@ -3771,6 +3788,10 @@ def setupElectronConfigs():
             auto_configs.write("Shake-up:\n")
             for conf, shell in zip(configuration_shakeup, shell_array_shakeup):
                 auto_configs.write(conf + ", " + shell + "\n")
+            
+            auto_configs.write("Excitation:\n")
+            for conf, shell in zip(configuration_excitation, shell_array_excitation):
+                auto_configs.write(conf + ", " + shell + "\n")
         
         nelectrons = str(enum)
         
@@ -3778,31 +3799,49 @@ def setupElectronConfigs():
         print("Atom ground-state Neutral configuration:\n" + configuration_string + "\n")
         print("Number of occupied orbitals = " + str(count) + "\n")
         
-        print("\nBoth 3 hole configurations and shake-up configurations were generated.\n")
-        inp = input("Would you like to calculate these configurations? - both, 3holes or shakeup : ").strip()
-        while inp != 'both' and inp != '3holes' and inp != 'shakeup':
-            print("\n keyword must be both, 3holes or shakeup!!!")
-            inp = input("Would you like to calculate this configurations? - both, 3holes or shakeup : ").strip()
+        print("\nAll electron configurations were generated.\n")
+        inp = input("Would you like to calculate these configurations? - all, 3+s, 3holes, shakeup, excitation : ").strip()
+        while inp != 'all' and inp != '3+s' and inp != '3holes' and inp != 'shakeup' and inp != 'excitation':
+            print("\n keyword must be all, 3+s, 3holes, shakeup or excitation!!!")
+            inp = input("Would you like to calculate this configurations? - all, 3+s, 3holes, shakeup, excitation : ").strip()
         
-        if inp == 'both':
+        if inp == 'all':
+            calculate_3holes = True
+            calculate_shakeup = True
+            calculate_excitation = True
+        elif inp == '3+s':
             calculate_3holes = True
             calculate_shakeup = True
         elif inp == '3holes':
             calculate_3holes = True
         elif inp == 'shakeup':
             calculate_shakeup = True
+        elif inp == 'excitation':
+            calculate_excitation = True
+            calculate_shakeup = True
     else:
         # Check if the files with the configurations for 1 and 2 holes to be read exist
         
         if os.path.exists(file_conf_rad) and os.path.exists(file_conf_aug):
+            # These configurations can also be used as excitation and excitation auger configurations
+            # the shakeup configurations are equivalent to auger for excitation
+            exist_excitation = True
+            exist_shakeup = True
+            
             configuration_1hole = []
             shell_array = []
+            
+            configuration_excitation = []
+            shell_array_excitation = []
             
             with open(file_conf_rad, "r") as f:
                 for line in f:
                     colum1, colum2 = line.strip().split(",")
                     configuration_1hole.append(colum1)
                     shell_array.append(colum2)
+                    
+                    configuration_excitation.append(colum1)
+                    shell_array_excitation.append(colum2)
                     count += 1
             
             electrons = []
@@ -3827,11 +3866,17 @@ def setupElectronConfigs():
             configuration_2holes = []
             shell_array_2holes = []
             
+            configuration_shakeup = []
+            shell_array_shakeup = []
+            
             with open(file_conf_aug, "r") as f:
                 for line in f:
                     colum1, colum2 = line.strip().split(",")
                     configuration_2holes.append(colum1)
                     shell_array_2holes.append(colum2)
+                    
+                    configuration_shakeup.append(colum1)
+                    shell_array_shakeup.append(colum2)
             
             electrons = []
             
@@ -3986,35 +4031,48 @@ def setupElectronConfigs():
         
         if exist_3holes and exist_shakeup:
             print("\nBoth 3 hole configurations and shake-up configurations exist.\n")
-            inp = input("Would you like to calculate these configurations? - both, 3holes or shakeup : ").strip()
-            while inp != 'both' or inp != '3holes' or inp != 'shakeup':
-                print("\n keyword must be both, 3holes or shakeup!!!")
-                inp = input("Would you like to calculate this configurations? - both, 3holes or shakeup : ").strip()
+            inp = input("Would you like to calculate these configurations? - all, 3+s, 3holes, shakeup, excitation : ").strip()
+            while inp != 'all' and inp != '3+s' and inp != '3holes' and inp != 'shakeup' and inp != 'excitation':
+                print("\n keyword must be all, 3+s, 3holes, shakeup or excitation!!!")
+                inp = input("Would you like to calculate this configurations? - all, 3+s, 3holes, shakeup, excitation : ").strip()
             
-            if inp == 'both':
+            if inp == 'all':
+                calculate_3holes = True
+                calculate_shakeup = True
+                calculate_excitation = True
+            elif inp == '3+s':
                 calculate_3holes = True
                 calculate_shakeup = True
             elif inp == '3holes':
                 calculate_3holes = True
             elif inp == 'shakeup':
                 calculate_shakeup = True
+            elif inp == 'excitation':
+                calculate_excitation = True
+                calculate_shakeup = True
         elif exist_3holes:
             print("\nOnly 3 hole configurations exist.\n")
-            inp = input("Would you like to calculate these configurations? (y or n) : ").strip()
-            while inp != 'y' or inp != 'n':
-                print("\n keyword must be y or n!!!")
-                inp = input("Would you like to calculate these configurations? (y or n) : ").strip()
+            inp = input("Would you like to calculate these configurations? - 3holes, excitation : ").strip()
+            while inp != '3holes' and inp != 'excitation':
+                print("\n keyword must be 3holes or excitation!!!")
+                inp = input("Would you like to calculate these configurations? - 3holes, excitation : ").strip()
             
-            if inp == 'y':
+            if inp == '3holes':
                 calculate_3holes = True
+            elif inp == 'excitation':
+                calculate_excitation = True
+                calculate_shakeup = True
         elif exist_shakeup:
             print("\nOnly shake-up configurations exist.\n")
-            inp = input("Would you like to calculate these configurations? (y or n) : ").strip()
-            while inp != 'y' or inp != 'n':
-                print("\n keyword must be y or n!!!")
-                inp = input("Would you like to calculate these configurations? (y or n) : ").strip()
+            inp = input("Would you like to calculate these configurations? - shakeup, excitation : ").strip()
+            while inp != 'shakeup' or inp != 'excitation':
+                print("\n keyword must be shakeup or excitation!!!")
+                inp = input("Would you like to calculate these configurations? - shakeup, excitation : ").strip()
             
-            if inp == 'y':
+            if inp == 'shakeup':
+                calculate_shakeup = True
+            elif inp == 'excitation':
+                calculate_excitation = True
                 calculate_shakeup = True
 
 
@@ -4096,6 +4154,8 @@ def writeCalculationParameters():
             fp.write("3 hole configurations are being calculated!\n")
         if calculate_shakeup:
             fp.write("Shake-up configurations are being calculated!\n")
+        if calculate_excitation:
+            fp.write("Excitation configurations are being calculated!\n")
         
         fp.write("Atomic number Z= " + atomic_number + "\n")
         fp.write("Number of electrons: " + nelectrons + "\n")
@@ -4168,13 +4228,17 @@ def midPrompt(partial_check=False):
         print("If you would like to continue the rates calculation with the current states please type:\n")
         print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
         print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
+        print("Excitation - A rate calculation will be performed for diagram and auger excitation decays, including the spectra calculations afterwards.\n")
         print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
         print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
+        print("excitation_rates - A rate calculation will be performed for diagram and auger excitation decays, without any spectra calculations.\n")
         inp = input().strip()
-        while inp != "All" and inp != "Simple" and inp != "rates_all" and inp != "rates":
+        while inp != "All" and inp != "Simple" and inp != "Excitation" and inp != "rates_all" and inp != "rates" and inp != "excitation_rates":
             if inp == "GetParameters":
                 GetParameters()
-                if calculate_shakeup and calculate_3holes:
+                if calculate_excitation and calculate_shakeup:
+                    print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both excitation and excitation auger states.\n\n")
+                elif calculate_shakeup and calculate_3holes:
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_3holes + ", " + file_final_results_shakeup + ", for all states.\n\n")
                 elif calculate_3holes:
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_3holes + ", for 1, 2 and 3 holes states.\n\n")
@@ -4184,7 +4248,13 @@ def midPrompt(partial_check=False):
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
             
             print("To recheck flagged states please type GetParameters.")
-            print("If you would like to continue the rates calculation with the current states please type Continue.\n")
+            print("If you would like to continue the rates calculation with the current states please type:\n")
+            print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
+            print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
+            print("Excitation - A rate calculation will be performed for diagram and auger excitation decays, including the spectra calculations afterwards.\n")
+            print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
+            print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
+            print("excitation_rates - A rate calculation will be performed for diagram and auger excitation decays, without any spectra calculations.\n")
             inp = input().strip()
 
 
@@ -4214,7 +4284,9 @@ def midPrompt(partial_check=False):
         while inp != "continue":
             if inp == "GetParameters":
                 GetParameters()
-                if calculate_shakeup and calculate_3holes:
+                if calculate_excitation and calculate_shakeup:
+                    print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both excitation and excitation auger states.\n\n")
+                elif calculate_shakeup and calculate_3holes:
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_3holes + ", " + file_final_results_shakeup + ", for all states.\n\n")
                 elif calculate_3holes:
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_3holes + ", for 1, 2 and 3 holes states.\n\n")
@@ -4224,7 +4296,7 @@ def midPrompt(partial_check=False):
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
             
             print("To recheck flagged states please type GetParameters.")
-            print("If you would like to continue the rates calculation with the current states please type Continue.\n")
+            print("If you would like to continue the rates calculation with the current states please type continue.\n")
             inp = input().strip()
         
         
@@ -4254,16 +4326,20 @@ def midPrompt(partial_check=False):
             print("\nChoose a new type of calculation:\n")
             print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
             print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
+            print("Excitation - A rate calculation will be performed for diagram and auger excitation decays, including the spectra calculations afterwards.\n")
             print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
             print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
+            print("excitation_rates - A rate calculation will be performed for diagram and auger excitation decays, without any spectra calculations.\n")
             inp = input().strip()
-            while inp != "All" and inp != "Simple" and inp != "rates_all" and inp != "rates":
-                print("Must be either: All, Simple, rates_all or rates!!!\n")
+            while inp != "All" and inp != "Simple" and inp != "Excitation" and inp != "rates_all" and inp != "rates" and inp != "excitation_rates":
+                print("Must be either: All, Simple, Excitation, rates_all, rates or excitation_rates!!!\n")
                 print("Choose a new type of calculation:\n")
                 print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
                 print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
+                print("Excitation - A rate calculation will be performed for diagram and auger excitation decays, including the spectra calculations afterwards.\n")
                 print("rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.\n")
                 print("rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.\n")
+                print("excitation_rates - A rate calculation will be performed for diagram and auger excitation decays, without any spectra calculations.\n")
                 inp = input().strip()
             
             type_calc = inp
@@ -4557,51 +4633,61 @@ if __name__ == "__main__":
     type_calc = ''
     
     if not partial:
-        calculateStates(shell_array, "radiative", configuration_1hole, int(nelectrons), calculated1holeStates, \
-                        file_cycle_log_1hole, "1 hole states discovery done.\nList of all discovered states:\n", "1 Hole", \
-                        partial_f(writeResultsState, file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
-                                                    calculated1holeStates, shell_array, radiative_by_hand, True
-                                ), radiative_by_hand)
+        if not calculate_excitation:
+            calculateStates(shell_array, "radiative", configuration_1hole, int(nelectrons), calculated1holeStates, \
+                            file_cycle_log_1hole, "1 hole states discovery done.\nList of all discovered states:\n", "1 Hole", \
+                            partial_f(writeResultsState, file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
+                                                        calculated1holeStates, shell_array, radiative_by_hand, True
+                                    ), radiative_by_hand)
         
-        calculateStates(shell_array_2holes, "auger", configuration_2holes, int(nelectrons) - 1, calculated2holesStates, \
-                        file_cycle_log_2holes, "2 hole states discovery done.\nList of all discovered states:\n", "2 Hole", \
-                        partial_f(writeResultsState, file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
-                                                    calculated2holesStates, shell_array_2holes, auger_by_hand, True
-                                ), auger_by_hand)
-        if calculate_3holes:
-            calculateStates(shell_array_3holes, "3holes", configuration_3holes, int(nelectrons) - 2, calculated3holesStates, \
-                            file_cycle_log_3holes, "3 holes states discovery done.\nList of all discovered states:\n", "3 Hole", \
-                            partial_f(writeResultsState, file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
-                                                        calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True
-                                    ), sat_auger_by_hand)
+            calculateStates(shell_array_2holes, "auger", configuration_2holes, int(nelectrons) - 1, calculated2holesStates, \
+                            file_cycle_log_2holes, "2 hole states discovery done.\nList of all discovered states:\n", "2 Hole", \
+                            partial_f(writeResultsState, file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
+                                                        calculated2holesStates, shell_array_2holes, auger_by_hand, True
+                                    ), auger_by_hand)
+        
+            if calculate_3holes:
+                calculateStates(shell_array_3holes, "3holes", configuration_3holes, int(nelectrons) - 2, calculated3holesStates, \
+                                file_cycle_log_3holes, "3 holes states discovery done.\nList of all discovered states:\n", "3 Hole", \
+                                partial_f(writeResultsState, file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
+                                                            calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True
+                                        ), sat_auger_by_hand)
+        
         if calculate_shakeup:
             calculateStates(shell_array_shakeup, "shakeup", configuration_shakeup, int(nelectrons), calculatedShakeupStates, \
                             file_cycle_log_shakeup, "Shake-up states discovery done.\nList of all discovered states:\n", "Shake-up", \
                             partial_f(writeResultsState, file_cycle_log_shakeup, file_final_results_shakeup, "Shake-up", \
                                                         calculatedShakeupStates, shell_array_shakeup, shakeup_by_hand, True
                                     ), shakeup_by_hand)
+        if calculate_excitation:
+            calculateStates(shell_array_excitation, "raditive", configuration_excitation, int(nelectrons) + 1, calculated1holeStates, \
+                            file_cycle_log_1hole, "1 hole states discovery done.\nList of all discovered states:\n", "1 Hole", \
+                            partial_f(writeResultsState, file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
+                                                        calculated1holeStates, shell_array_excitation, radiative_by_hand, True
+                                    ), radiative_by_hand)
         
         type_calc = midPrompt()
     elif redo_energy_calc:
-        if not complete_1hole:
-            calculateStates(shell_array, "radiative", configuration_1hole, int(nelectrons), calculated1holeStates, \
-                        file_cycle_log_1hole, "1 hole states discovery done.\nList of all discovered states:\n", "1 Hole", \
-                        partial_f(writeResultsState, file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
-                                                    calculated1holeStates, shell_array, radiative_by_hand, True
-                                ), radiative_by_hand, last_calculated_cycle_1hole, last_calculated_state_1hole)
-        if not complete_2holes:
-            calculateStates(shell_array_2holes, "auger", configuration_2holes, int(nelectrons) - 1, calculated2holesStates, \
-                        file_cycle_log_2holes, "2 hole states discovery done.\nList of all discovered states:\n", "2 Hole", \
-                        partial_f(writeResultsState, file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
-                                                    calculated2holesStates, shell_array_2holes, auger_by_hand, True
-                                ), auger_by_hand, last_calculated_cycle_2holes, last_calculated_state_2holes)
-        
-        if not complete_3holes and calculate_3holes:
-            calculateStates(shell_array_3holes, "3holes", configuration_3holes, int(nelectrons) - 2, calculated3holesStates, \
-                            file_cycle_log_3holes, "3 holes states discovery done.\nList of all discovered states:\n", "3 Hole", \
-                            partial_f(writeResultsState, file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
-                                                        calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True
-                                    ), sat_auger_by_hand, last_calculated_cycle_3holes, last_calculated_state_3holes)
+        if not calculate_excitation:
+            if not complete_1hole:
+                calculateStates(shell_array, "radiative", configuration_1hole, int(nelectrons), calculated1holeStates, \
+                            file_cycle_log_1hole, "1 hole states discovery done.\nList of all discovered states:\n", "1 Hole", \
+                            partial_f(writeResultsState, file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
+                                                        calculated1holeStates, shell_array, radiative_by_hand, True
+                                    ), radiative_by_hand, last_calculated_cycle_1hole, last_calculated_state_1hole)
+            if not complete_2holes:
+                calculateStates(shell_array_2holes, "auger", configuration_2holes, int(nelectrons) - 1, calculated2holesStates, \
+                            file_cycle_log_2holes, "2 hole states discovery done.\nList of all discovered states:\n", "2 Hole", \
+                            partial_f(writeResultsState, file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
+                                                        calculated2holesStates, shell_array_2holes, auger_by_hand, True
+                                    ), auger_by_hand, last_calculated_cycle_2holes, last_calculated_state_2holes)
+            
+            if not complete_3holes and calculate_3holes:
+                calculateStates(shell_array_3holes, "3holes", configuration_3holes, int(nelectrons) - 2, calculated3holesStates, \
+                                file_cycle_log_3holes, "3 holes states discovery done.\nList of all discovered states:\n", "3 Hole", \
+                                partial_f(writeResultsState, file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
+                                                            calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True
+                                        ), sat_auger_by_hand, last_calculated_cycle_3holes, last_calculated_state_3holes)
         
         if not complete_shakeup and calculate_shakeup:
             calculateStates(shell_array_shakeup, "shakeup", configuration_shakeup, int(nelectrons), calculatedShakeupStates, \
@@ -4609,6 +4695,13 @@ if __name__ == "__main__":
                             partial_f(writeResultsState, file_cycle_log_shakeup, file_final_results_shakeup, "Shake-up", \
                                                         calculatedShakeupStates, shell_array_shakeup, shakeup_by_hand, True
                                     ), shakeup_by_hand, last_calculated_cycle_shakeup, last_calculated_state_shakeup)
+        
+        if not complete_1hole and calculate_excitation:
+            calculateStates(shell_array_excitation, "radiative", configuration_excitation, int(nelectrons) + 1, calculated1holeStates, \
+                        file_cycle_log_1hole, "1 hole states discovery done.\nList of all discovered states:\n", "1 Hole", \
+                        partial_f(writeResultsState, file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
+                                                    calculated1holeStates, shell_array_excitation, radiative_by_hand, True
+                                ), radiative_by_hand, last_calculated_cycle_1hole, last_calculated_state_1hole)
         
         redo_transitions = True
         
@@ -4633,99 +4726,144 @@ if __name__ == "__main__":
             redo_sat_aug = True
     
     
+    # Currently supported calculation types:
+    # All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.
+    # Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.
+    # Excitation - A rate calculation will be performed for diagram and auger excitation decays, including the spectra calculations afterwards.
+    # rates_all - A rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, without any spectra calculations.
+    # rates - A rate calculation will be performed for diagram and auger decays, without any spectra calculations.
+    # excitation_rates - A rate calculation will be performed for diagram and auger excitation decays, without any spectra calculations.
+        
     if not partial:
-        rates(calculated1holeStates, calculatedRadiativeTransitions, \
-            "radiative", "radiative", file_calculated_radiative, file_rates, "Radiative", \
-            shell_array, configuration_1hole, nelectrons)
-        radiative_done = True
-        
-        rates_auger(calculated1holeStates, calculated2holesStates, calculatedAugerTransitions, \
-            "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
-            shell_array, configuration_1hole, shell_array_2holes, configuration_2holes, nelectrons, str(int(nelectrons) - 1))
-        auger_done = True
-        
-        if type_calc == "All" or type_calc == "rates_all":
-            rates(calculated2holesStates, calculatedSatelliteTransitions, \
-                "satellites", "auger", file_calculated_sat_auger, file_rates_sat_auger, "Satellite", \
-                shell_array_2holes, configuration_2holes, str(int(nelectrons) - 1))
-            satellite_done = True
-            
-            if calculate_3holes:
-                rates_auger(calculated2holesStates, calculated3holesStates, calculatedSatelliteAugerTransitions, \
-                            "sat_auger", "auger", "3holes", file_calculated_sat_auger, file_rates_sat_auger, "Satellite Auger", \
-                            shell_array_2holes, configuration_2holes, shell_array_3holes, configuration_3holes, str(int(nelectrons) - 1), str(int(nelectrons) - 2))
-                sat_aug_done = True
-            if calculate_shakeup:
-                rates(calculatedShakeupStates, calculatedShakeupTransitions, \
-                    "shakeup", "shakeup", file_calculated_shakeup, file_rates_shakeup, "Shake-up", \
-                    shell_array_shakeup, configuration_shakeup, nelectrons, True)
-                shakeup_done = True
-            
-    elif redo_transitions:
-        type_calc = midPrompt(True)
-        
-        if redo_rad:
+        if type_calc != "Excitation" or type_calc != "excitation_rates":
             rates(calculated1holeStates, calculatedRadiativeTransitions, \
                 "radiative", "radiative", file_calculated_radiative, file_rates, "Radiative", \
                 shell_array, configuration_1hole, nelectrons)
             radiative_done = True
-        elif partial_rad:
-            rates(calculated1holeStates, calculatedRadiativeTransitions, \
-                "radiative", "radiative", file_calculated_radiative, file_rates, "Radiative", \
-                shell_array, configuration_1hole, nelectrons, \
-                last_rad_calculated)
-            radiative_done = True
-        
-        if redo_aug:
+            
             rates_auger(calculated1holeStates, calculated2holesStates, calculatedAugerTransitions, \
-                        "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
-                        shell_array, configuration_1hole, shell_array_2holes, configuration_2holes, nelectrons, str(int(nelectrons) - 1))
-            auger_done = True
-        elif partial_aug:
-            rates_auger(calculated1holeStates, calculated2holesStates, calculatedAugerTransitions, \
-                        "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
-                        shell_array, configuration_1hole, shell_array_2holes, configuration_2holes, nelectrons, str(int(nelectrons) - 1), \
-                        last_aug_calculated)
+                "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
+                shell_array, configuration_1hole, shell_array_2holes, configuration_2holes, nelectrons, str(int(nelectrons) - 1))
             auger_done = True
         
-        if type_calc == "All" or type_calc == "rates_all":
-            if redo_sat:
+            if type_calc == "All" or type_calc == "rates_all":
                 rates(calculated2holesStates, calculatedSatelliteTransitions, \
                     "satellites", "auger", file_calculated_sat_auger, file_rates_sat_auger, "Satellite", \
                     shell_array_2holes, configuration_2holes, str(int(nelectrons) - 1))
                 satellite_done = True
-            elif partial_sat:
-                rates(calculated2holesStates, calculatedSatelliteTransitions, \
-                    "satellites", "auger", file_calculated_sat_auger, file_rates_sat_auger, "Satellite", \
-                    shell_array_2holes, configuration_2holes, str(int(nelectrons) - 1), \
-                    last_shakeoff_calculated)
-                satellite_done = True
+                
+                if calculate_3holes:
+                    rates_auger(calculated2holesStates, calculated3holesStates, calculatedSatelliteAugerTransitions, \
+                                "sat_auger", "auger", "3holes", file_calculated_sat_auger, file_rates_sat_auger, "Satellite Auger", \
+                                shell_array_2holes, configuration_2holes, shell_array_3holes, configuration_3holes, str(int(nelectrons) - 1), str(int(nelectrons) - 2))
+                    sat_aug_done = True
+                if calculate_shakeup:
+                    rates(calculatedShakeupStates, calculatedShakeupTransitions, \
+                        "shakeup", "shakeup", file_calculated_shakeup, file_rates_shakeup, "Shake-up", \
+                        shell_array_shakeup, configuration_shakeup, nelectrons, True)
+                    shakeup_done = True
+        else:
+            rates(calculated1holeStates, calculatedRadiativeTransitions, \
+                "radiative", "radiative", file_calculated_radiative, file_rates, "Radiative", \
+                shell_array_excitation, configuration_excitation, str(int(nelectrons) + 1))
+            radiative_done = True
             
-            if redo_sat_aug:
-                rates_auger(calculated2holesStates, calculated3holesStates, calculatedSatelliteAugerTransitions, \
-                            "sat_auger", "auger", "3holes", file_calculated_sat_auger, file_rates_sat_auger, "Satellite Auger", \
-                            shell_array_2holes, configuration_2holes, shell_array_3holes, configuration_3holes, str(int(nelectrons) - 1), str(int(nelectrons) - 2))
-                sat_aug_done = True
-            elif partial_sat_aug:
-                rates_auger(calculated2holesStates, calculated3holesStates, calculatedSatelliteAugerTransitions, \
-                            "sat_auger", "auger", "3holes", file_calculated_sat_auger, file_rates_sat_auger, "Satellite Auger", \
-                            shell_array_2holes, configuration_2holes, shell_array_3holes, configuration_3holes, str(int(nelectrons) - 1), str(int(nelectrons) - 2),\
-                            last_sat_auger_calculated)
-                sat_aug_done = True
+            rates_auger(calculated1holeStates, calculated2holesStates, calculatedAugerTransitions, \
+                "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
+                shell_array_excitation, configuration_excitation, shell_array_shakeup, configuration_excitation, str(int(nelectrons) + 1), nelectrons)
+            auger_done = True
+        
             
-            if redo_shakeup:
-                rates(calculatedShakeupStates, calculatedShakeupTransitions, \
-                    "shakeup", "shakeup", file_calculated_shakeup, file_rates_shakeup, "Shake-up", \
-                    shell_array_shakeup, configuration_shakeup, nelectrons, True)
-                shakeup_done = True
-            elif partial_shakeup:
-                rates(calculatedShakeupStates, calculatedShakeupTransitions, \
-                    "shakeup", "shakeup", file_calculated_shakeup, file_rates_shakeup, "Shake-up", \
-                    shell_array_shakeup, configuration_shakeup, nelectrons, True, \
-                    last_shakeup_calculated)
-                shakeup_done = True
+    elif redo_transitions:
+        type_calc = midPrompt(True)
+        
+        if type_calc != "Excitation" or type_calc != "excitation_rates":
+            if redo_rad:
+                rates(calculated1holeStates, calculatedRadiativeTransitions, \
+                    "radiative", "radiative", file_calculated_radiative, file_rates, "Radiative", \
+                    shell_array, configuration_1hole, nelectrons)
+                radiative_done = True
+            elif partial_rad:
+                rates(calculated1holeStates, calculatedRadiativeTransitions, \
+                    "radiative", "radiative", file_calculated_radiative, file_rates, "Radiative", \
+                    shell_array, configuration_1hole, nelectrons, \
+                    last_rad_calculated)
+                radiative_done = True
+            
+            if redo_aug:
+                rates_auger(calculated1holeStates, calculated2holesStates, calculatedAugerTransitions, \
+                            "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
+                            shell_array, configuration_1hole, shell_array_2holes, configuration_2holes, nelectrons, str(int(nelectrons) - 1))
+                auger_done = True
+            elif partial_aug:
+                rates_auger(calculated1holeStates, calculated2holesStates, calculatedAugerTransitions, \
+                            "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
+                            shell_array, configuration_1hole, shell_array_2holes, configuration_2holes, nelectrons, str(int(nelectrons) - 1), \
+                            last_aug_calculated)
+                auger_done = True
+            
+            if type_calc == "All" or type_calc == "rates_all":
+                if redo_sat:
+                    rates(calculated2holesStates, calculatedSatelliteTransitions, \
+                        "satellites", "auger", file_calculated_sat_auger, file_rates_sat_auger, "Satellite", \
+                        shell_array_2holes, configuration_2holes, str(int(nelectrons) - 1))
+                    satellite_done = True
+                elif partial_sat:
+                    rates(calculated2holesStates, calculatedSatelliteTransitions, \
+                        "satellites", "auger", file_calculated_sat_auger, file_rates_sat_auger, "Satellite", \
+                        shell_array_2holes, configuration_2holes, str(int(nelectrons) - 1), \
+                        last_shakeoff_calculated)
+                    satellite_done = True
+                
+                if redo_sat_aug:
+                    rates_auger(calculated2holesStates, calculated3holesStates, calculatedSatelliteAugerTransitions, \
+                                "sat_auger", "auger", "3holes", file_calculated_sat_auger, file_rates_sat_auger, "Satellite Auger", \
+                                shell_array_2holes, configuration_2holes, shell_array_3holes, configuration_3holes, str(int(nelectrons) - 1), str(int(nelectrons) - 2))
+                    sat_aug_done = True
+                elif partial_sat_aug:
+                    rates_auger(calculated2holesStates, calculated3holesStates, calculatedSatelliteAugerTransitions, \
+                                "sat_auger", "auger", "3holes", file_calculated_sat_auger, file_rates_sat_auger, "Satellite Auger", \
+                                shell_array_2holes, configuration_2holes, shell_array_3holes, configuration_3holes, str(int(nelectrons) - 1), str(int(nelectrons) - 2),\
+                                last_sat_auger_calculated)
+                    sat_aug_done = True
+                
+                if redo_shakeup:
+                    rates(calculatedShakeupStates, calculatedShakeupTransitions, \
+                        "shakeup", "shakeup", file_calculated_shakeup, file_rates_shakeup, "Shake-up", \
+                        shell_array_shakeup, configuration_shakeup, nelectrons, True)
+                    shakeup_done = True
+                elif partial_shakeup:
+                    rates(calculatedShakeupStates, calculatedShakeupTransitions, \
+                        "shakeup", "shakeup", file_calculated_shakeup, file_rates_shakeup, "Shake-up", \
+                        shell_array_shakeup, configuration_shakeup, nelectrons, True, \
+                        last_shakeup_calculated)
+                    shakeup_done = True
+        else:
+            if redo_rad:
+                rates(calculated1holeStates, calculatedRadiativeTransitions, \
+                    "radiative", "radiative", file_calculated_radiative, file_rates, "Radiative", \
+                    shell_array_excitation, configuration_excitation, str(int(nelectrons) + 1))
+                radiative_done = True
+            elif partial_rad:
+                rates(calculated1holeStates, calculatedRadiativeTransitions, \
+                    "radiative", "radiative", file_calculated_radiative, file_rates, "Radiative", \
+                    shell_array_excitation, configuration_excitation, str(int(nelectrons) + 1), \
+                    last_rad_calculated)
+                radiative_done = True
+            
+            if redo_aug:
+                rates_auger(calculated1holeStates, calculated2holesStates, calculatedAugerTransitions, \
+                            "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
+                            shell_array_excitation, configuration_excitation, shell_array_shakeup, configuration_shakeup, str(int(nelectrons) + 1), nelectrons)
+                auger_done = True
+            elif partial_aug:
+                rates_auger(calculated1holeStates, calculated2holesStates, calculatedAugerTransitions, \
+                            "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
+                            shell_array_excitation, configuration_excitation, shell_array_shakeup, configuration_excitation, str(int(nelectrons) + 1), nelectrons, \
+                            last_aug_calculated)
+                auger_done = True
 
 
     
-    if type_calc == "All" or type_calc == "Simple":
+    if type_calc == "All" or type_calc == "Simple" or type_calc == "Excitation":
         calculateSpectra(radiative_done, auger_done, satellite_done, sat_aug_done, shakeup_done)
