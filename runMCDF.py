@@ -3227,6 +3227,13 @@ def calculateSpectra(radiative_done, auger_done, satellite_done, sat_aug_done, s
 
 
 
+def setThresholds(energy, overlap):
+    global diffThreshold, overlapsThreshold
+    
+    diffThreshold = energy
+    overlapsThreshold = overlap
+
+
 def GetParameters():
     global radiative_by_hand, auger_by_hand, sat_auger_by_hand, shakeup_by_hand
     
@@ -3339,7 +3346,7 @@ def GetParameters():
     
     
 
-def GetParameters_full(energy_threshold = 0.0, overlap_threshold = 0.0, from_files = False):
+def GetParameters_full(from_files = False):
     global radiative_by_hand, auger_by_hand, sat_auger_by_hand, shakeup_by_hand
     
     # Get the parameters from 1 hole states
@@ -3348,7 +3355,7 @@ def GetParameters_full(energy_threshold = 0.0, overlap_threshold = 0.0, from_fil
         
         if not from_files:
             _, _, overlap, _, Diff, _ = state[1]
-            if Diff < 0.0 or Diff > energy_threshold or overlap > overlap_threshold:
+            if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
                 radiative_by_hand.append(counter)
         else:
             currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
@@ -3358,7 +3365,7 @@ def GetParameters_full(energy_threshold = 0.0, overlap_threshold = 0.0, from_fil
             
             calculated1holeStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
             
-            if not converged or Diff < 0.0 or Diff > energy_threshold or overlap > overlap_threshold:
+            if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
                 radiative_by_hand.append(counter)
     
     
@@ -3376,7 +3383,7 @@ def GetParameters_full(energy_threshold = 0.0, overlap_threshold = 0.0, from_fil
         
         if not from_files:
             _, _, overlap, _, Diff, _ = state[1]
-            if Diff < 0.0 or Diff > energy_threshold or overlap > overlap_threshold:
+            if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
                 auger_by_hand.append(counter)
         else:
             currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
@@ -3386,7 +3393,7 @@ def GetParameters_full(energy_threshold = 0.0, overlap_threshold = 0.0, from_fil
             
             calculated2holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
             
-            if not converged or Diff < 0.0 or Diff > energy_threshold or overlap > overlap_threshold:
+            if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
                 auger_by_hand.append(counter)
         
     if len(auger_by_hand) == 0:
@@ -3404,7 +3411,7 @@ def GetParameters_full(energy_threshold = 0.0, overlap_threshold = 0.0, from_fil
             
             if not from_files:
                 _, _, overlap, _, Diff, _ = state[1]
-                if Diff < 0.0 or Diff > energy_threshold or overlap > overlap_threshold:
+                if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
                     sat_auger_by_hand.append(counter)
             else:
                 currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
@@ -3414,7 +3421,7 @@ def GetParameters_full(energy_threshold = 0.0, overlap_threshold = 0.0, from_fil
                 
                 calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
                 
-                if not converged or Diff < 0.0 or Diff > energy_threshold or overlap > overlap_threshold:
+                if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
                     auger_by_hand.append(counter)
             
         if len(sat_auger_by_hand) == 0:
@@ -3432,7 +3439,7 @@ def GetParameters_full(energy_threshold = 0.0, overlap_threshold = 0.0, from_fil
             
             if not from_files:
                 _, _, overlap, _, Diff, _ = state[1]
-                if Diff < 0.0 or Diff > energy_threshold or overlap > overlap_threshold:
+                if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
                     shakeup_by_hand.append(counter)
             else:
                 currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
@@ -3442,7 +3449,7 @@ def GetParameters_full(energy_threshold = 0.0, overlap_threshold = 0.0, from_fil
                 
                 calculatedShakeupStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
                 
-                if not converged or Diff < 0.0 or Diff > energy_threshold or overlap > overlap_threshold:
+                if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
                     shakeup_by_hand.append(counter)
             
         if len(shakeup_by_hand) == 0:
@@ -4225,6 +4232,7 @@ def midPrompt(partial_check=False):
         #print("This script will tell you which states did not reach proper convergence.\n")
         
         print("To re-check flagged states please type GetParameters.")
+        print("If you would also like to change the parameter thresholds use GetParameters <energyThreshold> <overlapsThreshold>\n")
         print("If you would like to continue the rates calculation with the current states please type:\n")
         print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
         print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
@@ -4234,8 +4242,22 @@ def midPrompt(partial_check=False):
         print("excitation_rates - A rate calculation will be performed for diagram and auger excitation decays, without any spectra calculations.\n")
         inp = input().strip()
         while inp != "All" and inp != "Simple" and inp != "Excitation" and inp != "rates_all" and inp != "rates" and inp != "excitation_rates":
-            if inp == "GetParameters":
-                GetParameters()
+            if "GetParameters" in inp:
+                if len(inp.split()) == 3:
+                    args = inp.split()[1:]
+                    try:
+                        energyThreshold = float(args[0])
+                        overlapsThreshold = float(args[1])
+                        
+                        setThresholds(energyThreshold, overlapsThreshold)
+                        print("The parameter thresholds were set to: " + str(energyThreshold) + "; " + str(overlapsThreshold) + "\n")
+                    except:
+                        print("Could not set the new values for energy and overlap thresholds. One of the arguments was not a float!!\n\n")
+
+                    GetParameters_full()
+                else:
+                    GetParameters()
+                
                 if calculate_excitation and calculate_shakeup:
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both excitation and excitation auger states.\n\n")
                 elif calculate_shakeup and calculate_3holes:
@@ -4279,11 +4301,26 @@ def midPrompt(partial_check=False):
         
         
         print("To re-update the flagged states please type GetParameters.")
+        print("If you would also like to change the parameter thresholds use GetParameters <energyThreshold> <overlapsThreshold>")
         print("If you would like to continue the rates calculation with the current states please type continue\n")
         inp = input().strip()
         while inp != "continue":
-            if inp == "GetParameters":
-                GetParameters()
+            if "GetParameters" in inp:
+                if len(inp.split()) == 3:
+                    args = inp.split()[1:]
+                    try:
+                        energyThreshold = float(args[0])
+                        overlapsThreshold = float(args[1])
+                        
+                        setThresholds(energyThreshold, overlapsThreshold)
+                        print("The parameter thresholds were set to: " + str(energyThreshold) + "; " + str(overlapsThreshold) + "\n")
+                    except:
+                        print("Could not set the new values for energy and overlap thresholds. One of the arguments was not a float!!\n\n")
+
+                    GetParameters_full()
+                else:
+                    GetParameters()
+                
                 if calculate_excitation and calculate_shakeup:
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both excitation and excitation auger states.\n\n")
                 elif calculate_shakeup and calculate_3holes:
