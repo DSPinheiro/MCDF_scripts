@@ -3479,7 +3479,7 @@ def GetParameters_full(from_files = False, read_1hole = True, read_2hole = True,
                         calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
                     
                     if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
-                        auger_by_hand.append(counter)
+                        sat_auger_by_hand.append(counter)
                 
             if len(sat_auger_by_hand) == 0:
                 print("\n\nAll 3 hole states have converged!\n")
@@ -3522,80 +3522,6 @@ def GetParameters_full(from_files = False, read_1hole = True, read_2hole = True,
     else:
         print("Skipping shake-up states parameter reading...")
 
-
-def loadParameters():
-    global radiative_by_hand, auger_by_hand, sat_auger_by_hand, shakeup_by_hand
-
-    radiative_by_hand = []
-    auger_by_hand = []
-    sat_auger_by_hand = []
-    shakeup_by_hand = []
-    
-    for counter, state in enumerate(calculated1holeStates):
-        i, jj, eigv = state[0]
-        
-        currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-        currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
-        
-        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-        
-        calculated1holeStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-        
-        if not converged or Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-            radiative_by_hand.append(counter)
-    
-    print("\nLoaded 1 hole states parameters.")
-    
-    
-    for counter, state in enumerate(calculated2holesStates):
-        i, jj, eigv = state[0]
-        
-        currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-        currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-        
-        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-        
-        calculated2holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-        
-        if not converged or Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-            auger_by_hand.append(counter)
-    
-    print("\nLoaded 2 holes states parameters.\n")
-    
-    
-    if calculate_3holes:
-        for counter, state in enumerate(calculated3holesStates):
-            i, jj, eigv = state[0]
-            
-            currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-            
-            if not converged or Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                sat_auger_by_hand.append(counter)
-        
-        print("\nLoaded 3 holes states parameters.\n")
-    
-    
-    if calculate_shakeup:
-        for counter, state in enumerate(calculatedShakeupStates):
-            i, jj, eigv = state[0]
-            
-            currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
-
-            if not converged or Diff < 0.0 or Diff >= diffThreshold or overlap >= overlapsThreshold:
-                shakeup_by_hand.append(counter)
-                
-        print("\nLoaded shake-up states parameters.\n")
-    
     
     
 def initializeEnergyCalc():
@@ -4316,7 +4242,7 @@ def midPrompt(partial_check=False):
                     except:
                         print("Could not set the new values for energy and overlap thresholds. One of the arguments was not a float!!\n\n")
 
-                    GetParameters_full()
+                    GetParameters_full(True)
                 else:
                     GetParameters()
                 
@@ -4351,8 +4277,8 @@ def midPrompt(partial_check=False):
         
         print(80*"-" + "\n")
     else:
-        loadParameters()
-        GetParameters()
+        print("\nLoading pre-calculated states parameters...")
+        GetParameters_full(True)
         
         print("\n\n All states have been re-checked for convergence and an updated list of states that need to be bone by hand was generated.")
         print("\nPlease re-check for convergence of states!!!")
@@ -4379,7 +4305,7 @@ def midPrompt(partial_check=False):
                     except:
                         print("Could not set the new values for energy and overlap thresholds. One of the arguments was not a float!!\n\n")
 
-                    GetParameters_full()
+                    GetParameters_full(True)
                 else:
                     GetParameters()
                 
@@ -4395,6 +4321,7 @@ def midPrompt(partial_check=False):
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
             
             print("To recheck flagged states please type GetParameters.")
+            print("If you would also like to change the parameter thresholds use GetParameters <energyThreshold> <overlapsThreshold>")
             print("If you would like to continue the rates calculation with the current states please type continue.\n")
             inp = input().strip()
         
@@ -4576,7 +4503,8 @@ if __name__ == "__main__":
             if flags == 1:
                 # 1 flags that we can proceed with the calculation from the current log cycles and start with sorting them
                 # This does not require more configuration, we just need to load the parameters from the states in the list
-                loadParameters()
+                print("\nLoading pre-calculated states parameters...")
+                GetParameters_full(True)
                 redo_transitions = True
             elif flags == 2:
                 # 2 flags that we can proceed with the calculation from the current sorted states list and start calculating the transitions
