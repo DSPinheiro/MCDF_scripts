@@ -1811,8 +1811,8 @@ def writeResultsState(file_cycle_log, file_final_per_type, state_mod, calculated
                         stateResults.write(shell_labels[state[0][0]] + ", " + str(state[0][0]) + ", " + str(state[0][1]) + ", " + str(state[0][2]) + ", " + state[1][0] + ", " + str(state[1][1]) + ", " + str(state[1][2]) + ", " + str(state[1][3]) + ", " + str(state[1][4]) + ", " + str(state[1][5]) + "\n")
                 
                 if len(by_hand) > 0:
-                    stateResults_type.write(state_mod + " by Hand (" + str(len(by_hand)) + ")\n")
-                    stateResults.write(state_mod + " by Hand (" + str(len(by_hand)) + ")\n")
+                    stateResults_type.write("\n\n" + state_mod + " by Hand (" + str(len(by_hand)) + ")\n")
+                    stateResults.write("\n\n" + state_mod + " by Hand (" + str(len(by_hand)) + ")\n")
                     for counter in by_hand:
                         stateResults_type.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
                         stateResults.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
