@@ -351,28 +351,72 @@ def loadElectronConfigs():
         exist_shakeup = True
         exist_excitation = True
         
+        read_1hole = False
+        read_2hole = False
+        read_3hole = False
+        read_shakeup = False
+        read_excitation = False
+        
+        configuration_1hole = []
+        shell_array = []
+        configuration_2holes = []
+        shell_array_2holes = []
+        configuration_3holes = []
+        shell_array_3holes = []
+        configuration_shakeup = []
+        shell_array_shakeup = []
+        configuration_excitation = []
+        shell_array_excitation = []
+        
         with open(file_automatic_configurations, "r") as auto_configs:
             for line in auto_configs:
                 if "1 hole:" in line:
-                    vals = line.strip().split(", ")
-                    configuration_1hole = vals[0]
-                    shell_array = vals[1]
+                    read_1hole = True
+                    read_2hole = False
+                    read_3hole = False
+                    read_shakeup = False
+                    read_excitation = False
                 elif "2 hole:" in line:
-                    vals = line.strip().split(", ")
-                    configuration_2holes = vals[0]
-                    shell_array_2holes = vals[1]
+                    read_1hole = False
+                    read_2hole = True
+                    read_3hole = False
+                    read_shakeup = False
+                    read_excitation = False
                 elif "3 hole:" in line:
-                    vals = line.strip().split(", ")
-                    configuration_3holes = vals[0]
-                    shell_array_3holes = vals[1]
+                    read_1hole = False
+                    read_2hole = False
+                    read_3hole = True
+                    read_shakeup = False
+                    read_excitation = False
                 elif "Shake-up:" in line:
-                    vals = line.strip().split(", ")
-                    configuration_shakeup = vals[0]
-                    shell_array_shakeup = vals[1]
+                    read_1hole = False
+                    read_2hole = False
+                    read_3hole = False
+                    read_shakeup = True
+                    read_excitation = False
                 elif "Excitation:" in line:
+                    read_1hole = False
+                    read_2hole = False
+                    read_3hole = False
+                    read_shakeup = False
+                    read_excitation = True
+                else:
                     vals = line.strip().split(", ")
-                    configuration_excitation = vals[0]
-                    shell_array_excitation = vals[1]
+                    if read_1hole:
+                        configuration_1hole.append(vals[0])
+                        shell_array.append(vals[1])
+                    elif read_2hole:
+                        configuration_2holes.append(vals[0])
+                        shell_array_2holes.append(vals[1])
+                    elif read_3hole:
+                        configuration_3holes.append(vals[0])
+                        shell_array_3holes.append(vals[1])
+                    elif read_shakeup:
+                        configuration_shakeup.append(vals[0])
+                        shell_array_shakeup.append(vals[1])
+                    elif read_excitation:
+                        configuration_excitation.append(vals[0])
+                        shell_array_excitation.append(vals[1])
         
         with open(file_parameters, "r") as fp:
             for line in fp:
@@ -513,7 +557,6 @@ def checkPartial():
         number_max_of_threads = subprocess.check_output(['nproc']).strip()
     
     setupFiles()
-    
     
     with open(file_parameters, "r") as fp:
         for line in fp:
@@ -3346,118 +3389,138 @@ def GetParameters():
     
     
 
-def GetParameters_full(from_files = False):
+def GetParameters_full(from_files = False, read_1hole = True, read_2hole = True, read_3hole = True, read_shakeup = True):
     global radiative_by_hand, auger_by_hand, sat_auger_by_hand, shakeup_by_hand
     
     # Get the parameters from 1 hole states
-    for counter, state in enumerate(calculated1holeStates):
-        i, jj, eigv = state[0]
-        
-        if not from_files:
-            _, _, overlap, _, Diff, _ = state[1]
-            if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
-                radiative_by_hand.append(counter)
-        else:
-            currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            calculated1holeStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
-            
-            if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
-                radiative_by_hand.append(counter)
-    
-    
-    if len(radiative_by_hand) == 0:
-        print("\n\nAll 1 hole states have converged!\n")
-    
-    writeResultsState(file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
-                    calculated1holeStates, shell_array, radiative_by_hand, True)
-    
-    
-    
-    # Get the parameters from 2 hole states
-    for counter, state in enumerate(calculated2holesStates):
-        i, jj, eigv = state[0]
-        
-        if not from_files:
-            _, _, overlap, _, Diff, _ = state[1]
-            if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
-                auger_by_hand.append(counter)
-        else:
-            currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-            currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-            
-            converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-            
-            calculated2holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
-            
-            if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
-                auger_by_hand.append(counter)
-        
-    if len(auger_by_hand) == 0:
-        print("\n\nAll 2 hole states have converged!\n")
-    
-    writeResultsState(file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
-                    calculated2holesStates, shell_array_2holes, auger_by_hand, True)
-    
-    
-    
-    # Get the parameters from 3 hole states
-    if calculate_3holes:
-        for counter, state in enumerate(calculated3holesStates):
+    if read_1hole:
+        for counter, state in enumerate(calculated1holeStates):
             i, jj, eigv = state[0]
             
             if not from_files:
                 _, _, overlap, _, Diff, _ = state[1]
                 if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
-                    sat_auger_by_hand.append(counter)
+                    radiative_by_hand.append(counter)
             else:
-                currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+                currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
                 
                 converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
                 
-                calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
+                if len(calculated1holeStates[counter]) == 1:
+                    calculated1holeStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                else:
+                    calculated1holeStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
+                
+                if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
+                    radiative_by_hand.append(counter)
+
+
+        if len(radiative_by_hand) == 0:
+            print("\n\nAll 1 hole states have converged!\n")
+        
+        writeResultsState(file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
+                        calculated1holeStates, shell_array, radiative_by_hand, True)
+    else:
+        print("Skipping 1 hole states parameter reading...")
+    
+    
+    # Get the parameters from 2 hole states
+    if read_2hole:
+        for counter, state in enumerate(calculated2holesStates):
+            i, jj, eigv = state[0]
+            
+            if not from_files:
+                _, _, overlap, _, Diff, _ = state[1]
+                if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
+                    auger_by_hand.append(counter)
+            else:
+                currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
+                
+                converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                
+                if len(calculated2holesStates[counter]) == 1:
+                    calculated2holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                else:
+                    calculated2holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
                 
                 if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
                     auger_by_hand.append(counter)
             
-        if len(sat_auger_by_hand) == 0:
-            print("\n\nAll 3 hole states have converged!\n")
+        if len(auger_by_hand) == 0:
+            print("\n\nAll 2 hole states have converged!\n")
         
-        writeResultsState(file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
-                    calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True)
+        writeResultsState(file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
+                        calculated2holesStates, shell_array_2holes, auger_by_hand, True)
+    else:
+        print("Skipping 2 hole states parameter reading...")
     
+    
+    # Get the parameters from 3 hole states
+    if read_3hole:
+        if calculate_3holes:
+            for counter, state in enumerate(calculated3holesStates):
+                i, jj, eigv = state[0]
+                
+                if not from_files:
+                    _, _, overlap, _, Diff, _ = state[1]
+                    if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
+                        sat_auger_by_hand.append(counter)
+                else:
+                    currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                    
+                    if len(calculated3holesStates[counter]) == 1:
+                        calculated3holesStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                    else:
+                        calculated3holesStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
+                    
+                    if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
+                        auger_by_hand.append(counter)
+                
+            if len(sat_auger_by_hand) == 0:
+                print("\n\nAll 3 hole states have converged!\n")
+            
+            writeResultsState(file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
+                        calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True)
+    else:
+        print("Skipping 3 hole states parameter reading...")
     
     
     # Get the parameters from shake-up states
-    if calculate_shakeup:
-        for counter, state in enumerate(calculatedShakeupStates):
-            i, jj, eigv = state[0]
+    if read_shakeup:
+        if calculate_shakeup:
+            for counter, state in enumerate(calculatedShakeupStates):
+                i, jj, eigv = state[0]
+                
+                if not from_files:
+                    _, _, overlap, _, Diff, _ = state[1]
+                    if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
+                        shakeup_by_hand.append(counter)
+                else:
+                    currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                    
+                    if len(calculatedShakeupStates[counter]) == 1:
+                        calculatedShakeupStates[counter].append((higher_config, highest_percent, overlap, accuracy, Diff, welt))
+                    else:
+                        calculatedShakeupStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
+                    
+                    if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
+                        shakeup_by_hand.append(counter)
+                
+            if len(shakeup_by_hand) == 0:
+                print("\n\nAll shake-up states have converged!\n")
             
-            if not from_files:
-                _, _, overlap, _, Diff, _ = state[1]
-                if Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
-                    shakeup_by_hand.append(counter)
-            else:
-                currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-                
-                converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-                
-                calculatedShakeupStates[counter][-1] = (higher_config, highest_percent, overlap, accuracy, Diff, welt)
-                
-                if not converged or Diff < 0.0 or Diff > diffThreshold or overlap > overlapsThreshold:
-                    shakeup_by_hand.append(counter)
-            
-        if len(shakeup_by_hand) == 0:
-            print("\n\nAll shake-up states have converged!\n")
-        
-        writeResultsState(file_cycle_log_shakeup, file_final_results_shakeup, "Shake-up", \
-                    calculatedShakeupStates, shell_array_shakeup, shakeup_by_hand, True)
-    
+            writeResultsState(file_cycle_log_shakeup, file_final_results_shakeup, "Shake-up", \
+                        calculatedShakeupStates, shell_array_shakeup, shakeup_by_hand, True)
+    else:
+        print("Skipping shake-up states parameter reading...")
 
 
 def loadParameters():
@@ -4148,8 +4211,7 @@ def setupFiles():
     file_level_widths_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_shakeup.txt"
     file_level_widths_sat_auger = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_sat_auger.txt"
     
-    if label_auto:
-        file_automatic_configurations = rootDir + "/" + directory_name + "/backup_generated_configurations.txt"
+    file_automatic_configurations = rootDir + "/" + directory_name + "/backup_generated_configurations.txt"
 
 
 def writeCalculationParameters():
@@ -4645,21 +4707,17 @@ if __name__ == "__main__":
                 else:
                     partial_aug = True
             elif flags[0] == 5:
-                resort = False
-                
                 _, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup = flags
+                GetParameters_full(True, not complete_sorted_1hole, not complete_sorted_2holes, not complete_sorted_3holes, not complete_sorted_shakeup)
             elif flags[0] == 6:
-                resort = False
-                
                 _, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes = flags
+                GetParameters_full(True, not complete_sorted_1hole, not complete_sorted_2holes, not complete_sorted_3holes)
             elif flags[0] == 7:
-                resort = False
-                
                 _, complete_sorted_1hole, complete_sorted_2holes, complete_sorted_shakeup = flags
+                GetParameters_full(True, not complete_sorted_1hole, not complete_sorted_2holes, not complete_sorted_shakeup)
             elif flags[0] == 8:
-                resort = False
-                
                 _, complete_sorted_1hole, complete_sorted_2holes = flags
+                GetParameters_full(True, not complete_sorted_1hole, not complete_sorted_2holes)
             else:
                 print("\nError unexpected partial flags were returned. Stopping...")
                 sys.exit(1)
