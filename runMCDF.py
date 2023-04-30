@@ -1,5 +1,6 @@
 import os, sys, platform
 import subprocess
+from multiprocessing import Process, Manager
 import shutil
 import re
 
@@ -1813,9 +1814,51 @@ def writeResultsState(file_cycle_log, file_final_per_type, state_mod, calculated
                 if len(by_hand) > 0:
                     stateResults_type.write("\n\n" + state_mod + " by Hand (" + str(len(by_hand)) + ")\n")
                     stateResults.write("\n\n" + state_mod + " by Hand (" + str(len(by_hand)) + ")\n")
+                    
+                    by_hand_energy = [counter for counter in by_hand if calculatedStates[counter][1][2] < overlapsThreshold]
+                    by_hand_overlap = [counter for counter in by_hand if calculatedStates[counter][1][4] < diffThreshold]
+                    by_hand_both = [counter for counter in by_hand if calculatedStates[counter][1][2] >= overlapsThreshold and calculatedStates[counter][1][4] > diffThreshold]
+                    
                     for counter in by_hand:
                         stateResults_type.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
                         stateResults.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
+                    
+
+                    stateResults_type.write("\n\n" + state_mod + " by Hand Energy flagged (" + str(len(by_hand_energy)) + ")\n")
+                    stateResults.write("\n\n" + state_mod + " by Hand Energy flagged (" + str(len(by_hand_energy)) + ")\n")
+
+                    if len(by_hand_energy) == 0:
+                        stateResults_type.write("\n")
+                        stateResults.write("\n")
+
+                    for counter in by_hand_energy:
+                        stateResults_type.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
+                        stateResults.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
+                    
+                    
+                    stateResults_type.write("\n\n" + state_mod + " by Hand Overlap flagged (" + str(len(by_hand_overlap)) + ")\n")
+                    stateResults.write("\n\n" + state_mod + " by Hand Overlap flagged (" + str(len(by_hand_overlap)) + ")\n")
+
+                    if len(by_hand_overlap) == 0:
+                        stateResults_type.write("\n")
+                        stateResults.write("\n")
+
+                    for counter in by_hand_overlap:
+                        stateResults_type.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
+                        stateResults.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
+                    
+                    
+                    stateResults_type.write("\n\n" + state_mod + " by Hand Both flagged (" + str(len(by_hand_both)) + ")\n")
+                    stateResults.write("\n\n" + state_mod + " by Hand Both flagged (" + str(len(by_hand_both)) + ")\n")
+
+                    if len(by_hand_both) == 0:
+                        stateResults_type.write("\n")
+                        stateResults.write("\n")
+
+                    for counter in by_hand_both:
+                        stateResults_type.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
+                        stateResults.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
+                    
                 else:
                     stateResults_type.write("All " + state_mod + " states have converged\n")
                     stateResults.write("All " + state_mod + " states have converged\n")
@@ -3302,7 +3345,8 @@ def GetParameters():
     
     if len(radiative_by_hand) == 0:
         print("\n\nAll 1 hole states have converged!\n")
-    
+    else:
+        radiative_by_hand.sort(key = lambda x: calculated1holeStates[x][0])
     
     writeResultsState(file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
                     calculated1holeStates, shell_array, radiative_by_hand, True)
@@ -3329,7 +3373,8 @@ def GetParameters():
         
     if len(auger_by_hand) == 0:
         print("\n\nAll 2 hole states have converged!\n")
-    
+    else:
+        auger_by_hand.sort(key = lambda x: calculated2holesStates[x][0])
     
     writeResultsState(file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
                     calculated2holesStates, shell_array_2holes, auger_by_hand, True)
@@ -3356,6 +3401,8 @@ def GetParameters():
             
         if len(sat_auger_by_hand) == 0:
             print("\n\nAll 3 hole states have converged!\n")
+        else:
+            sat_auger_by_hand.sort(key = lambda x: calculated3holesStates[x][0])
         
         writeResultsState(file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
                     calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True)
@@ -3383,6 +3430,8 @@ def GetParameters():
             
         if len(shakeup_by_hand) == 0:
             print("\n\nAll shake-up states have converged!\n")
+        else:
+            shakeup_by_hand.sort(key = lambda x: calculatedShakeupStates[x][0])
         
         writeResultsState(file_cycle_log_shakeup, file_final_results_shakeup, "Shake-up", \
                     calculatedShakeupStates, shell_array_shakeup, shakeup_by_hand, True)
@@ -3418,6 +3467,8 @@ def GetParameters_full(from_files = False, read_1hole = True, read_2hole = True,
 
         if len(radiative_by_hand) == 0:
             print("\n\nAll 1 hole states have converged!\n")
+        else:
+            radiative_by_hand.sort(key = lambda x: calculated1holeStates[x][0])
         
         writeResultsState(file_cycle_log_1hole, file_final_results_1hole, "1 Hole", \
                         calculated1holeStates, shell_array, radiative_by_hand, True)
@@ -3450,6 +3501,8 @@ def GetParameters_full(from_files = False, read_1hole = True, read_2hole = True,
             
         if len(auger_by_hand) == 0:
             print("\n\nAll 2 hole states have converged!\n")
+        else:
+            auger_by_hand.sort(key = lambda x: calculated2holesStates[x][0])
         
         writeResultsState(file_cycle_log_2holes, file_final_results_2holes, "2 Holes", \
                         calculated2holesStates, shell_array_2holes, auger_by_hand, True)
@@ -3483,7 +3536,9 @@ def GetParameters_full(from_files = False, read_1hole = True, read_2hole = True,
                 
             if len(sat_auger_by_hand) == 0:
                 print("\n\nAll 3 hole states have converged!\n")
-            
+            else:
+                sat_auger_by_hand.sort(key = lambda x: calculated3holesStates[x][0])
+
             writeResultsState(file_cycle_log_3holes, file_final_results_3holes, "3 Holes", \
                         calculated3holesStates, shell_array_3holes, sat_auger_by_hand, True)
     else:
@@ -3516,11 +3571,458 @@ def GetParameters_full(from_files = False, read_1hole = True, read_2hole = True,
                 
             if len(shakeup_by_hand) == 0:
                 print("\n\nAll shake-up states have converged!\n")
+            else:
+                shakeup_by_hand.sort(key = lambda x: calculatedShakeupStates[x][0])
             
             writeResultsState(file_cycle_log_shakeup, file_final_results_shakeup, "Shake-up", \
                         calculatedShakeupStates, shell_array_shakeup, shakeup_by_hand, True)
     else:
         print("Skipping shake-up states parameter reading...")
+
+
+
+def editCurrState(radiative_by_hand_report, currDir, currFileName, counter):
+    os.system("nano " + currDir + "/" + currFileName + ".f05")
+                    
+    with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+        radiative_by_hand_report[counter][0].append(''.join(currInput.readlines()))
+    
+    os.system(currDir + "/" + exe_file)
+    
+    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+
+    testNum = len(radiative_by_hand_report[counter][0])
+    
+    userOutput = str(testNum) + "\t\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t" + str(Diff) + "\t" + str(welt) + "\n"
+    
+    radiative_by_hand_report[counter][1] += userOutput
+
+
+def showTest(radiative_by_hand_report, num, testNum):
+    print(radiative_by_hand_report[num][testNum])
+    
+    print("\n\nTo continue press any key.")
+    inp = input()
+    
+    lines_to_delete = len(radiative_by_hand_report[num][testNum]) + 5
+    
+    sys.stdout.write("\033[" + str(lines_to_delete) + "A")
+    sys.stdout.write("\033[J")
+
+
+def cycle_by_hand():
+    os.system("tput smcup")
+    os.system("clear")
+    
+    # CYCLE 1 HOLE STATES
+    if len(radiative_by_hand) > 0:
+        inp = input("\nCycle 1 hole states by hand? (y or n) : ").strip()
+        while inp != "y" and inp != "n":
+            print("\n keyword must be y or n!!!")
+            inp = input("\nCycle 1 hole states by hand? (y or n) : ").strip()
+        
+        if inp == "y":
+            with Manager() as manager:
+                processes = []
+                
+                # each element
+                # list of strings with the tested input files
+                # string with the terminal log
+                radiative_by_hand_report = manager.list()
+                
+                for counter in radiative_by_hand:
+                    i, jj, eigv = calculated1holeStates[counter][0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+                        startingInput = ''.join(currInput.readlines())
+                                        
+                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+
+                    startingOutput = "1\t\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t" + str(Diff) + "\t" + str(welt) + "\n"
+
+                    radiative_by_hand_report.append([[startingInput], \
+                                                    "\nOutput parameters from state calculation.\n\n" + \
+                                                    "Test\tHigher Configuration\tPercent\tOverlap\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
+                                                    startingOutput])
+                
+                num = 0
+                
+                while True:
+                    os.system("clear")
+
+                    print(str(num + 1) + " of " + str(len(radiative_by_hand)) + "\n")
+                    
+                    counter = radiative_by_hand[num]
+
+                    i, jj, eigv = calculated1holeStates[counter][0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    print("\n               Label\t2J\tEigenvalue")
+                    print("State numbers: " + shell_array[i] + "\t" + str(jj) + "\t" + str(eigv))
+                    
+                    print(radiative_by_hand_report[num][1])
+                    
+                    print("\n\nCommands:")
+                    print("next / prev - move between states.")
+                    print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
+                    print("show <testNumber> - show the input file for the <testNumber> test.")
+                    print("exit - stop cycling the 1 hole states by hand.")
+                    
+                    inp = input().strip()
+                    while inp != "next" and inp != "prev" and inp != "edit" and inp != "exit":
+                        if "show" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    testNum = int(args)
+                                    
+                                    if testNum < len(radiative_by_hand_report[num][0]):
+                                        showTest(radiative_by_hand_report, num, testNum)
+                                    else:
+                                        print("The current number of test for this state is " + str(len(radiative_by_hand_report[num][0])) + ", while " + str(testNum) + " was requested!!\n")
+                                except:
+                                    print("The argument <testNumber> was not an integer!!\n")
+                            else:
+                                print("No testNumber was provided in the input!!\n")
+                        else:
+                            print("keyword must be next, prev, edit, show or exit!!!\n")
+                        
+                        inp = input().strip()
+                    
+                    if inp == "next":
+                        num += 1
+                        if num >= len(radiative_by_hand):
+                            num = 0
+                    elif inp == "prev":
+                        num -= 1
+                        if num <= -1:
+                            num = len(radiative_by_hand) - 1
+                    elif inp == "edit":
+                        p = Process(target = editCurrState, args = (radiative_by_hand_report, currDir, currFileName, counter))
+                        processes.append(p)
+                        p.start()
+                    elif inp == "exit":
+                        break
+                
+                
+                for p in processes:
+                    p.join()
+    else:
+        print("\nNo 1 hole states to cycle by hand...")
+    
+    
+    # CYCLE 2 HOLE STATES
+    if len(auger_by_hand) > 0:
+        inp = input("\nCycle 2 hole states by hand? (y or n) : ").strip()
+        while inp != "y" and inp != "n":
+            print("\n keyword must be y or n!!!")
+            inp = input("\nCycle 2 hole states by hand? (y or n) : ").strip()
+        
+        if inp == "y":
+            with Manager() as manager:
+                processes = []
+                
+                # each element
+                # list of strings with the tested input files
+                # string with the terminal log
+                auger_by_hand_report = manager.list()
+                
+                for counter in auger_by_hand:
+                    i, jj, eigv = calculated2holesStates[counter][0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+                        startingInput = ''.join(currInput.readlines())
+                                        
+                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+
+                    startingOutput = "1\t\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t" + str(Diff) + "\t" + str(welt) + "\n"
+
+                    auger_by_hand_report.append([[startingInput], \
+                                                    "\nOutput parameters from state calculation.\n\n" + \
+                                                    "Test\tHigher Configuration\tPercent\tOverlap\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
+                                                    startingOutput])
+                
+                num = 0
+                
+                while True:
+                    os.system("clear")
+
+                    print(str(num + 1) + " of " + str(len(auger_by_hand)) + "\n")
+                    
+                    counter = auger_by_hand[num]
+
+                    i, jj, eigv = calculated2holesStates[counter][0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    print("\n               Label\t2J\tEigenvalue")
+                    print("State numbers: " + shell_array_2holes[i] + "\t" + str(jj) + "\t" + str(eigv))
+                    
+                    print(auger_by_hand_report[num][1])
+                    
+                    print("\n\nCommands:")
+                    print("next / prev - move between states.")
+                    print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
+                    print("show <testNumber> - show the input file for the <testNumber> test.")
+                    print("exit - stop cycling the 1 hole states by hand.")
+                    
+                    inp = input().strip()
+                    while inp != "next" and inp != "prev" and inp != "edit" and inp != "exit":
+                        if "show" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    testNum = int(args)
+                                    
+                                    if testNum < len(auger_by_hand_report[num][0]):
+                                        showTest(auger_by_hand_report, num, testNum)
+                                    else:
+                                        print("The current number of test for this state is " + str(len(auger_by_hand_report[num][0])) + ", while " + str(testNum) + " was requested!!\n")
+                                except:
+                                    print("The argument <testNumber> was not an integer!!\n")
+                            else:
+                                print("No testNumber was provided in the input!!\n")
+                        else:
+                            print("keyword must be next, prev, edit, show or exit!!!\n")
+                        
+                        inp = input().strip()
+                    
+                    if inp == "next":
+                        num += 1
+                        if num >= len(auger_by_hand):
+                            num = 0
+                    elif inp == "prev":
+                        num -= 1
+                        if num <= -1:
+                            num = len(auger_by_hand) - 1
+                    elif inp == "edit":
+                        p = Process(target = editCurrState, args = (auger_by_hand_report, currDir, currFileName, counter))
+                        processes.append(p)
+                        p.start()
+                    elif inp == "exit":
+                        break
+                
+                
+                for p in processes:
+                    p.join()
+    else:
+        print("\nNo 2 hole states to cycle by hand...")
+    
+    
+    # CYCLE 3 HOLE STATES
+    if len(sat_auger_by_hand) > 0:
+        inp = input("\nCycle 3 hole states by hand? (y or n) : ").strip()
+        while inp != "y" and inp != "n":
+            print("\n keyword must be y or n!!!")
+            inp = input("\nCycle 3 hole states by hand? (y or n) : ").strip()
+        
+        if inp == "y":
+            with Manager() as manager:
+                processes = []
+                
+                # each element
+                # list of strings with the tested input files
+                # string with the terminal log
+                sat_auger_by_hand_report = manager.list()
+                
+                for counter in sat_auger_by_hand:
+                    i, jj, eigv = calculated3holesStates[counter][0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+                        startingInput = ''.join(currInput.readlines())
+                                        
+                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+
+                    startingOutput = "1\t\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t" + str(Diff) + "\t" + str(welt) + "\n"
+
+                    sat_auger_by_hand_report.append([[startingInput], \
+                                                    "\nOutput parameters from state calculation.\n\n" + \
+                                                    "Test\tHigher Configuration\tPercent\tOverlap\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
+                                                    startingOutput])
+                
+                num = 0
+                
+                while True:
+                    os.system("clear")
+
+                    print(str(num + 1) + " of " + str(len(sat_auger_by_hand)) + "\n")
+                    
+                    counter = sat_auger_by_hand[num]
+
+                    i, jj, eigv = calculated3holesStates[counter][0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    print("\n               Label\t2J\tEigenvalue")
+                    print("State numbers: " + shell_array_3holes[i] + "\t" + str(jj) + "\t" + str(eigv))
+                    
+                    print(sat_auger_by_hand_report[num][1])
+                    
+                    print("\n\nCommands:")
+                    print("next / prev - move between states.")
+                    print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
+                    print("show <testNumber> - show the input file for the <testNumber> test.")
+                    print("exit - stop cycling the 1 hole states by hand.")
+                    
+                    inp = input().strip()
+                    while inp != "next" and inp != "prev" and inp != "edit" and inp != "exit":
+                        if "show" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    testNum = int(args)
+                                    
+                                    if testNum < len(sat_auger_by_hand_report[num][0]):
+                                        showTest(sat_auger_by_hand_report, num, testNum)
+                                    else:
+                                        print("The current number of test for this state is " + str(len(sat_auger_by_hand_report[num][0])) + ", while " + str(testNum) + " was requested!!\n")
+                                except:
+                                    print("The argument <testNumber> was not an integer!!\n")
+                            else:
+                                print("No testNumber was provided in the input!!\n")
+                        else:
+                            print("keyword must be next, prev, edit, show or exit!!!\n")
+                        
+                        inp = input().strip()
+                    
+                    if inp == "next":
+                        num += 1
+                        if num >= len(sat_auger_by_hand):
+                            num = 0
+                    elif inp == "prev":
+                        num -= 1
+                        if num <= -1:
+                            num = len(sat_auger_by_hand) - 1
+                    elif inp == "edit":
+                        p = Process(target = editCurrState, args = (sat_auger_by_hand_report, currDir, currFileName, counter))
+                        processes.append(p)
+                        p.start()
+                    elif inp == "exit":
+                        break
+                
+                
+                for p in processes:
+                    p.join()
+    else:
+        print("\nNo 3 hole states to cycle by hand...")
+    
+    
+    # CYCLE SHAKE-UP STATES
+    if len(shakeup_by_hand) > 0:
+        inp = input("\nCycle shake-up states by hand? (y or n) : ").strip()
+        while inp != "y" and inp != "n":
+            print("\n keyword must be y or n!!!")
+            inp = input("\nCycle shake-up states by hand? (y or n) : ").strip()
+        
+        if inp == "y":
+            with Manager() as manager:
+                processes = []
+                
+                # each element
+                # list of strings with the tested input files
+                # string with the terminal log
+                shakeup_by_hand_report = manager.list()
+                
+                for counter in shakeup_by_hand:
+                    i, jj, eigv = calculatedShakeupStates[counter][0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+                        startingInput = ''.join(currInput.readlines())
+                                        
+                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+
+                    startingOutput = "1\t\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t" + str(Diff) + "\t" + str(welt) + "\n"
+
+                    shakeup_by_hand_report.append([[startingInput], \
+                                                    "\nOutput parameters from state calculation.\n\n" + \
+                                                    "Test\tHigher Configuration\tPercent\tOverlap\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
+                                                    startingOutput])
+                
+                num = 0
+                
+                while True:
+                    os.system("clear")
+
+                    print(str(num + 1) + " of " + str(len(shakeup_by_hand)) + "\n")
+                    
+                    counter = shakeup_by_hand[num]
+
+                    i, jj, eigv = calculatedShakeupStates[counter][0]
+                    
+                    currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                    currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+                    
+                    print("\n               Label\t2J\tEigenvalue")
+                    print("State numbers: " + shell_array_shakeup[i] + "\t" + str(jj) + "\t" + str(eigv))
+                    
+                    print(shakeup_by_hand_report[num][1])
+                    
+                    print("\n\nCommands:")
+                    print("next / prev - move between states.")
+                    print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
+                    print("show <testNumber> - show the input file for the <testNumber> test.")
+                    print("exit - stop cycling the 1 hole states by hand.")
+                    
+                    inp = input().strip()
+                    while inp != "next" and inp != "prev" and inp != "edit" and inp != "exit":
+                        if "show" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    testNum = int(args)
+                                    
+                                    if testNum < len(shakeup_by_hand_report[num][0]):
+                                        showTest(shakeup_by_hand_report, num, testNum)
+                                    else:
+                                        print("The current number of test for this state is " + str(len(shakeup_by_hand_report[num][0])) + ", while " + str(testNum) + " was requested!!\n")
+                                except:
+                                    print("The argument <testNumber> was not an integer!!\n")
+                            else:
+                                print("No testNumber was provided in the input!!\n")
+                        else:
+                            print("keyword must be next, prev, edit, show or exit!!!\n")
+                        
+                        inp = input().strip()
+                    
+                    if inp == "next":
+                        num += 1
+                        if num >= len(shakeup_by_hand):
+                            num = 0
+                    elif inp == "prev":
+                        num -= 1
+                        if num <= -1:
+                            num = len(shakeup_by_hand) - 1
+                    elif inp == "edit":
+                        p = Process(target = editCurrState, args = (shakeup_by_hand_report, currDir, currFileName, counter))
+                        processes.append(p)
+                        p.start()
+                    elif inp == "exit":
+                        break
+                
+                
+                for p in processes:
+                    p.join()
+    else:
+        print("\nNo shake-up states to cycle by hand...")
+    
+    
+    os.system("tput rmcup")
 
     
     
@@ -4799,6 +5301,9 @@ if __name__ == "__main__":
             
     elif redo_transitions:
         type_calc = midPrompt(True)
+        
+        print("\nRe-sorting lists of states...")
+        sortCalculatedStates()
         
         if type_calc != "Excitation" or type_calc != "excitation_rates":
             if redo_rad:
