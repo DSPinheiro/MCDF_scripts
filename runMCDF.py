@@ -3607,11 +3607,15 @@ def editCurrState(reports, currDir, currFileName, num):
     reports[num][1] += userOutput
 
 
-def showTest(reports, num, testNum, shell, jj, eigv):
-    print(reports[num][0][testNum])
-    
-    print("\n\nPress enter to continue.")
-    inp = input()
+def showTest(reports, num, testNum, currDir, shell, jj, eigv):
+    if testNum == -1:
+        currFileName = shell + "_" + jj + "_" + eigv
+        os.system("less " + currDir + "/" + currFileName + ".f06")
+    else:
+        print(reports[num][0][testNum])
+        
+        print("\n\nPress enter to continue.")
+        inp = input()
     
     os.system("clear")
     
@@ -3702,7 +3706,7 @@ def cycle_by_hand():
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
-                    print("show <testNumber> - show the input file for the <testNumber> test.")
+                    print("show <testNumber> - show the input file for the <testNumber> test. If <testNumber> is 0 the current output is shown")
                     print("exit - stop cycling the 1 hole states by hand.")
                     
                     inp = input().strip()
@@ -3714,10 +3718,10 @@ def cycle_by_hand():
                                     testNum = int(args) - 1
                                     
                                     if testNum < len(reports[num][0]):
-                                        showTest(reports, num, testNum, shell_array[i], str(jj), str(eigv))
+                                        showTest(reports, num, testNum, currDir, shell_array[i], str(jj), str(eigv))
                                     else:
                                         print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
-                                except:
+                                except ValueError:
                                     print("The argument <testNumber> was not an integer!!\n")
                             else:
                                 print("No testNumber was provided in the input!!\n")
@@ -3819,7 +3823,7 @@ def cycle_by_hand():
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
-                    print("show <testNumber> - show the input file for the <testNumber> test.")
+                    print("show <testNumber> - show the input file for the <testNumber> test. If <testNumber> is 0 the current output is shown")
                     print("exit - stop cycling the 2 hole states by hand.")
                     
                     inp = input().strip()
@@ -3831,10 +3835,10 @@ def cycle_by_hand():
                                     testNum = int(args) - 1
                                     
                                     if testNum < len(reports[num][0]):
-                                        showTest(reports, num, testNum, shell_array_2holes[i], str(jj), str(eigv))
+                                        showTest(reports, num, testNum, currDir, shell_array_2holes[i], str(jj), str(eigv))
                                     else:
                                         print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
-                                except:
+                                except ValueError:
                                     print("The argument <testNumber> was not an integer!!\n")
                             else:
                                 print("No testNumber was provided in the input!!\n")
@@ -3936,7 +3940,7 @@ def cycle_by_hand():
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
-                    print("show <testNumber> - show the input file for the <testNumber> test.")
+                    print("show <testNumber> - show the input file for the <testNumber> test. If <testNumber> is 0 the current output is shown")
                     print("exit - stop cycling the 3 hole states by hand.")
                     
                     inp = input().strip()
@@ -3948,10 +3952,10 @@ def cycle_by_hand():
                                     testNum = int(args) - 1
                                     
                                     if testNum < len(reports[num][0]):
-                                        showTest(reports, num, testNum, shell_array_3holes[i], str(jj), str(eigv))
+                                        showTest(reports, num, testNum, currDir, shell_array_3holes[i], str(jj), str(eigv))
                                     else:
                                         print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
-                                except:
+                                except ValueError:
                                     print("The argument <testNumber> was not an integer!!\n")
                             else:
                                 print("No testNumber was provided in the input!!\n")
@@ -4052,7 +4056,7 @@ def cycle_by_hand():
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
-                    print("show <testNumber> - show the input file for the <testNumber> test.")
+                    print("show <testNumber> - show the input file for the <testNumber> test. If <testNumber> is 0 the current output is shown")
                     print("exit - stop cycling the shake-up states by hand.")
                     
                     inp = input().strip()
@@ -4064,10 +4068,10 @@ def cycle_by_hand():
                                     testNum = int(args) - 1
                                     
                                     if testNum < len(reports[num][0]):
-                                        showTest(reports, num, testNum, shell_array_shakeup[i], str(jj), str(eigv))
+                                        showTest(reports, num, testNum, currDir, shell_array_shakeup[i], str(jj), str(eigv))
                                     else:
                                         print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
-                                except:
+                                except ValueError:
                                     print("The argument <testNumber> was not an integer!!\n")
                             else:
                                 print("No testNumber was provided in the input!!\n")
