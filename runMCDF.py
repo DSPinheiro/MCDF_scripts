@@ -196,12 +196,20 @@ calculatedShakeupStates = []
 
 # List of 1 hole states that need to be calculated by hand
 radiative_by_hand = []
+# List of the 1 hole states reports that were recalculated by hand
+radiative_by_hand_report = []
 # List of 2 holes states that need to be calculated by hand
 auger_by_hand = []
+# List of the 2 hole states reports that were recalculated by hand
+auger_by_hand_report = []
 # List of 3 holes states that need to be calculated by hand
 sat_auger_by_hand = []
+# List of the 3 hole states reports that were recalculated by hand
+sat_auger_by_hand_report = []
 # List of shake-up states that need to be calculated by hand
 shakeup_by_hand = []
+# List of the shake-up states reports that were recalculated by hand
+shakeup_by_hand_report = []
 
 # Flag to control if we chose to calculate 3 holes state configurations
 calculate_3holes = False
@@ -209,6 +217,9 @@ calculate_3holes = False
 calculate_shakeup = False
 # Flag to control if we chose to calculate excitation state configurations
 calculate_excitation = False
+
+# Multiprocessing manager for cycle_by_hand function
+manager = Manager()
 
 # ------------------------------------------------------------------- #
 #             Variables to manage the calculated transtions           #
@@ -1815,15 +1826,15 @@ def writeResultsState(file_cycle_log, file_final_per_type, state_mod, calculated
                     stateResults_type.write("\n\n" + state_mod + " by Hand (" + str(len(by_hand)) + ")\n")
                     stateResults.write("\n\n" + state_mod + " by Hand (" + str(len(by_hand)) + ")\n")
                     
-                    by_hand_energy = [counter for counter in by_hand if calculatedStates[counter][1][2] < overlapsThreshold]
-                    by_hand_overlap = [counter for counter in by_hand if calculatedStates[counter][1][4] < diffThreshold]
-                    by_hand_both = [counter for counter in by_hand if calculatedStates[counter][1][2] >= overlapsThreshold and calculatedStates[counter][1][4] > diffThreshold]
-                    
                     for counter in by_hand:
                         stateResults_type.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
                         stateResults.write(shell_labels[calculatedStates[counter][0][0]] + ", " + str(calculatedStates[counter][0][0]) + ", " + str(calculatedStates[counter][0][1]) + ", " + str(calculatedStates[counter][0][2]) + ", " + calculatedStates[counter][1][0] + ", " + str(calculatedStates[counter][1][1]) + ", " + str(calculatedStates[counter][1][2]) + ", " + str(calculatedStates[counter][1][3]) + ", " + str(calculatedStates[counter][1][4]) + ", " + str(calculatedStates[counter][1][5]) + "\n")
                     
 
+                    by_hand_energy = [counter for counter in by_hand if calculatedStates[counter][1][2] < overlapsThreshold]
+                    by_hand_overlap = [counter for counter in by_hand if calculatedStates[counter][1][4] < diffThreshold and calculatedStates[counter][1][4] >= 0]
+                    by_hand_both = [counter for counter in by_hand if calculatedStates[counter][1][2] >= overlapsThreshold and (calculatedStates[counter][1][4] > diffThreshold or calculatedStates[counter][1][4] < 0)]
+                    
                     stateResults_type.write("\n\n" + state_mod + " by Hand Energy flagged (" + str(len(by_hand_energy)) + ")\n")
                     stateResults.write("\n\n" + state_mod + " by Hand Energy flagged (" + str(len(by_hand_energy)) + ")\n")
 
@@ -3581,36 +3592,46 @@ def GetParameters_full(from_files = False, read_1hole = True, read_2hole = True,
 
 
 
-def editCurrState(radiative_by_hand_report, currDir, currFileName, counter):
-    os.system("nano " + currDir + "/" + currFileName + ".f05")
-                    
+def editCurrState(reports, currDir, currFileName, num):
     with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
-        radiative_by_hand_report[counter][0].append(''.join(currInput.readlines()))
+        reports[num][0].append(''.join(currInput.readlines()))
     
-    os.system(currDir + "/" + exe_file)
+    subprocess.call(exe_file, cwd = currDir, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
     
     converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
 
-    testNum = len(radiative_by_hand_report[counter][0])
+    testNum = len(reports[num][0])
     
-    userOutput = str(testNum) + "\t\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t" + str(Diff) + "\t" + str(welt) + "\n"
+    userOutput = str(testNum) + "\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t\t" + str(Diff) + "\t\t" + str(welt) + "\n"
     
-    radiative_by_hand_report[counter][1] += userOutput
+    reports[num][1] += userOutput
 
 
-def showTest(radiative_by_hand_report, num, testNum):
-    print(radiative_by_hand_report[num][testNum])
+def showTest(reports, num, testNum, shell, jj, eigv):
+    print(reports[num][0][testNum])
     
-    print("\n\nTo continue press any key.")
+    print("\n\nPress enter to continue.")
     inp = input()
     
-    lines_to_delete = len(radiative_by_hand_report[num][testNum]) + 5
+    os.system("clear")
     
-    sys.stdout.write("\033[" + str(lines_to_delete) + "A")
-    sys.stdout.write("\033[J")
+    print(str(num + 1) + " of " + str(len(reports)) + "\n")
+    
+    print("\n               Label\t2J\tEigenvalue")
+    print("State numbers: " + shell + "\t" + jj + "\t" + eigv)
+    
+    print(reports[num][1])
+    
+    print("\n\nCommands:")
+    print("next / prev - move between states.")
+    print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
+    print("show <testNumber> - show the input file for the <testNumber> test.")
+    print("exit - stop cycling the 1 hole states by hand.")
 
 
 def cycle_by_hand():
+    global radiative_by_hand_report, auger_by_hand_report, sat_auger_by_hand_report, shakeup_by_hand_report
+    
     os.system("tput smcup")
     os.system("clear")
     
@@ -3628,25 +3649,36 @@ def cycle_by_hand():
                 # each element
                 # list of strings with the tested input files
                 # string with the terminal log
-                radiative_by_hand_report = manager.list()
+                reports = manager.list()
                 
-                for counter in radiative_by_hand:
-                    i, jj, eigv = calculated1holeStates[counter][0]
-                    
-                    currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
-                    
-                    with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
-                        startingInput = ''.join(currInput.readlines())
-                                        
-                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                if len(radiative_by_hand_report) == 0:
+                    print("Initializing parameters for the 1 hole states by hand...")
+                    for counter in radiative_by_hand:
+                        i, jj, eigv = calculated1holeStates[counter][0]
+                        
+                        currDir = rootDir + "/" + directory_name + "/radiative/" + shell_array[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                        currFileName = shell_array[i] + "_" + str(jj) + "_" + str(eigv)
+                        
+                        with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+                            startingInput = ''.join(currInput.readlines())
+                                            
+                        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
 
-                    startingOutput = "1\t\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t" + str(Diff) + "\t" + str(welt) + "\n"
+                        startingOutput = "1\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t\t" + str(Diff) + "\t\t" + str(welt) + "\n"
 
-                    radiative_by_hand_report.append([[startingInput], \
-                                                    "\nOutput parameters from state calculation.\n\n" + \
-                                                    "Test\tHigher Configuration\tPercent\tOverlap\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
-                                                    startingOutput])
+                        report = manager.list()
+                        inputs = manager.list()
+                        
+                        inputs.append(startingInput)
+                        
+                        report.append(inputs)
+                        report.append("\nOutput parameters from state calculation.\n\n" + \
+                                            "Test\tHigher Configuration" + " " * max((len(higher_config) - 20), 0) + "\tPercent\tOverlap\t\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
+                                            startingOutput)
+                        
+                        reports.append(report)
+                else:
+                    reports = radiative_by_hand_report[:]
                 
                 num = 0
                 
@@ -3665,7 +3697,7 @@ def cycle_by_hand():
                     print("\n               Label\t2J\tEigenvalue")
                     print("State numbers: " + shell_array[i] + "\t" + str(jj) + "\t" + str(eigv))
                     
-                    print(radiative_by_hand_report[num][1])
+                    print(reports[num][1])
                     
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
@@ -3679,12 +3711,12 @@ def cycle_by_hand():
                             if len(inp.split()) == 2:
                                 args = inp.split()[1]
                                 try:
-                                    testNum = int(args)
+                                    testNum = int(args) - 1
                                     
-                                    if testNum < len(radiative_by_hand_report[num][0]):
-                                        showTest(radiative_by_hand_report, num, testNum)
+                                    if testNum < len(reports[num][0]):
+                                        showTest(reports, num, testNum, shell_array[i], str(jj), str(eigv))
                                     else:
-                                        print("The current number of test for this state is " + str(len(radiative_by_hand_report[num][0])) + ", while " + str(testNum) + " was requested!!\n")
+                                        print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
                                 except:
                                     print("The argument <testNumber> was not an integer!!\n")
                             else:
@@ -3703,7 +3735,8 @@ def cycle_by_hand():
                         if num <= -1:
                             num = len(radiative_by_hand) - 1
                     elif inp == "edit":
-                        p = Process(target = editCurrState, args = (radiative_by_hand_report, currDir, currFileName, counter))
+                        os.system("nano " + currDir + "/" + currFileName + ".f05")
+                        p = Process(target = editCurrState, args = (reports, currDir, currFileName, num))
                         processes.append(p)
                         p.start()
                     elif inp == "exit":
@@ -3712,6 +3745,8 @@ def cycle_by_hand():
                 
                 for p in processes:
                     p.join()
+                
+                radiative_by_hand_report = reports[:]
     else:
         print("\nNo 1 hole states to cycle by hand...")
     
@@ -3730,25 +3765,37 @@ def cycle_by_hand():
                 # each element
                 # list of strings with the tested input files
                 # string with the terminal log
-                auger_by_hand_report = manager.list()
+                reports = manager.list()
                 
-                for counter in auger_by_hand:
-                    i, jj, eigv = calculated2holesStates[counter][0]
-                    
-                    currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
-                    
-                    with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
-                        startingInput = ''.join(currInput.readlines())
-                                        
-                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                if len(auger_by_hand_report) == 0:
+                    print("Initializing parameters for the 2 hole states by hand...")
+                    for counter in auger_by_hand:
+                        i, jj, eigv = calculated2holesStates[counter][0]
+                        
+                        currDir = rootDir + "/" + directory_name + "/auger/" + shell_array_2holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                        currFileName = shell_array_2holes[i] + "_" + str(jj) + "_" + str(eigv)
+                        
+                        with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+                            startingInput = ''.join(currInput.readlines())
+                                            
+                        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
 
-                    startingOutput = "1\t\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t" + str(Diff) + "\t" + str(welt) + "\n"
+                        startingOutput = "1\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t\t" + str(Diff) + "\t\t" + str(welt) + "\n"
 
-                    auger_by_hand_report.append([[startingInput], \
-                                                    "\nOutput parameters from state calculation.\n\n" + \
-                                                    "Test\tHigher Configuration\tPercent\tOverlap\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
-                                                    startingOutput])
+                        report = manager.list()
+                        inputs = manager.list()
+                        
+                        inputs.append(startingInput)
+                        
+                        report.append(inputs)
+                        report.append("\nOutput parameters from state calculation.\n\n" + \
+                                            "Test\tHigher Configuration" + " " * max((len(higher_config) - 20), 0) + "\tPercent\tOverlap\t\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
+                                            startingOutput)
+                        
+                        
+                        reports.append(report)
+                else:
+                    reports = auger_by_hand_report[:]
                 
                 num = 0
                 
@@ -3767,13 +3814,13 @@ def cycle_by_hand():
                     print("\n               Label\t2J\tEigenvalue")
                     print("State numbers: " + shell_array_2holes[i] + "\t" + str(jj) + "\t" + str(eigv))
                     
-                    print(auger_by_hand_report[num][1])
+                    print(reports[num][1])
                     
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
                     print("show <testNumber> - show the input file for the <testNumber> test.")
-                    print("exit - stop cycling the 1 hole states by hand.")
+                    print("exit - stop cycling the 2 hole states by hand.")
                     
                     inp = input().strip()
                     while inp != "next" and inp != "prev" and inp != "edit" and inp != "exit":
@@ -3781,12 +3828,12 @@ def cycle_by_hand():
                             if len(inp.split()) == 2:
                                 args = inp.split()[1]
                                 try:
-                                    testNum = int(args)
+                                    testNum = int(args) - 1
                                     
-                                    if testNum < len(auger_by_hand_report[num][0]):
-                                        showTest(auger_by_hand_report, num, testNum)
+                                    if testNum < len(reports[num][0]):
+                                        showTest(reports, num, testNum, shell_array_2holes[i], str(jj), str(eigv))
                                     else:
-                                        print("The current number of test for this state is " + str(len(auger_by_hand_report[num][0])) + ", while " + str(testNum) + " was requested!!\n")
+                                        print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
                                 except:
                                     print("The argument <testNumber> was not an integer!!\n")
                             else:
@@ -3805,7 +3852,8 @@ def cycle_by_hand():
                         if num <= -1:
                             num = len(auger_by_hand) - 1
                     elif inp == "edit":
-                        p = Process(target = editCurrState, args = (auger_by_hand_report, currDir, currFileName, counter))
+                        os.system("nano " + currDir + "/" + currFileName + ".f05")
+                        p = Process(target = editCurrState, args = (reports, currDir, currFileName, num))
                         processes.append(p)
                         p.start()
                     elif inp == "exit":
@@ -3814,6 +3862,8 @@ def cycle_by_hand():
                 
                 for p in processes:
                     p.join()
+                
+                auger_by_hand_report = reports[:]
     else:
         print("\nNo 2 hole states to cycle by hand...")
     
@@ -3832,25 +3882,37 @@ def cycle_by_hand():
                 # each element
                 # list of strings with the tested input files
                 # string with the terminal log
-                sat_auger_by_hand_report = manager.list()
+                reports = manager.list()
                 
-                for counter in sat_auger_by_hand:
-                    i, jj, eigv = calculated3holesStates[counter][0]
-                    
-                    currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
-                    
-                    with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
-                        startingInput = ''.join(currInput.readlines())
-                                        
-                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                if len(sat_auger_by_hand_report) == 0:
+                    print("Initializing parameters for the 3 hole states by hand...")
+                    for counter in sat_auger_by_hand:
+                        i, jj, eigv = calculated3holesStates[counter][0]
+                        
+                        currDir = rootDir + "/" + directory_name + "/3holes/" + shell_array_3holes[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                        currFileName = shell_array_3holes[i] + "_" + str(jj) + "_" + str(eigv)
+                        
+                        with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+                            startingInput = ''.join(currInput.readlines())
+                                            
+                        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
 
-                    startingOutput = "1\t\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t" + str(Diff) + "\t" + str(welt) + "\n"
+                        startingOutput = "1\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t\t" + str(Diff) + "\t\t" + str(welt) + "\n"
 
-                    sat_auger_by_hand_report.append([[startingInput], \
-                                                    "\nOutput parameters from state calculation.\n\n" + \
-                                                    "Test\tHigher Configuration\tPercent\tOverlap\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
-                                                    startingOutput])
+                        report = manager.list()
+                        inputs = manager.list()
+                        
+                        inputs.append(startingInput)
+                        
+                        report.append(inputs)
+                        report.append("\nOutput parameters from state calculation.\n\n" + \
+                                            "Test\tHigher Configuration" + " " * max((len(higher_config) - 20), 0) + "\tPercent\tOverlap\t\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
+                                            startingOutput)
+                        
+                        
+                        reports.append(report)
+                else:
+                    reports = sat_auger_by_hand_report[:]
                 
                 num = 0
                 
@@ -3869,13 +3931,13 @@ def cycle_by_hand():
                     print("\n               Label\t2J\tEigenvalue")
                     print("State numbers: " + shell_array_3holes[i] + "\t" + str(jj) + "\t" + str(eigv))
                     
-                    print(sat_auger_by_hand_report[num][1])
+                    print(reports[num][1])
                     
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
                     print("show <testNumber> - show the input file for the <testNumber> test.")
-                    print("exit - stop cycling the 1 hole states by hand.")
+                    print("exit - stop cycling the 3 hole states by hand.")
                     
                     inp = input().strip()
                     while inp != "next" and inp != "prev" and inp != "edit" and inp != "exit":
@@ -3883,12 +3945,12 @@ def cycle_by_hand():
                             if len(inp.split()) == 2:
                                 args = inp.split()[1]
                                 try:
-                                    testNum = int(args)
+                                    testNum = int(args) - 1
                                     
-                                    if testNum < len(sat_auger_by_hand_report[num][0]):
-                                        showTest(sat_auger_by_hand_report, num, testNum)
+                                    if testNum < len(reports[num][0]):
+                                        showTest(reports, num, testNum, shell_array_3holes[i], str(jj), str(eigv))
                                     else:
-                                        print("The current number of test for this state is " + str(len(sat_auger_by_hand_report[num][0])) + ", while " + str(testNum) + " was requested!!\n")
+                                        print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
                                 except:
                                     print("The argument <testNumber> was not an integer!!\n")
                             else:
@@ -3907,7 +3969,8 @@ def cycle_by_hand():
                         if num <= -1:
                             num = len(sat_auger_by_hand) - 1
                     elif inp == "edit":
-                        p = Process(target = editCurrState, args = (sat_auger_by_hand_report, currDir, currFileName, counter))
+                        os.system("nano " + currDir + "/" + currFileName + ".f05")
+                        p = Process(target = editCurrState, args = (reports, currDir, currFileName, num))
                         processes.append(p)
                         p.start()
                     elif inp == "exit":
@@ -3916,6 +3979,8 @@ def cycle_by_hand():
                 
                 for p in processes:
                     p.join()
+                
+                sat_auger_by_hand_report = reports[:]
     else:
         print("\nNo 3 hole states to cycle by hand...")
     
@@ -3934,25 +3999,36 @@ def cycle_by_hand():
                 # each element
                 # list of strings with the tested input files
                 # string with the terminal log
-                shakeup_by_hand_report = manager.list()
+                reports = manager.list()
                 
-                for counter in shakeup_by_hand:
-                    i, jj, eigv = calculatedShakeupStates[counter][0]
-                    
-                    currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
-                    currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
-                    
-                    with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
-                        startingInput = ''.join(currInput.readlines())
-                                        
-                    converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
+                if len(shakeup_by_hand_report) == 0:
+                    print("Initializing parameters for the Shake-up states by hand...")
+                    for counter in shakeup_by_hand:
+                        i, jj, eigv = calculatedShakeupStates[counter][0]
+                        
+                        currDir = rootDir + "/" + directory_name + "/shakeup/" + shell_array_shakeup[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
+                        currFileName = shell_array_shakeup[i] + "_" + str(jj) + "_" + str(eigv)
+                        
+                        with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+                            startingInput = ''.join(currInput.readlines())
+                                            
+                        converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
 
-                    startingOutput = "1\t\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t" + str(Diff) + "\t" + str(welt) + "\n"
+                        startingOutput = "1\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t\t" + str(Diff) + "\t\t" + str(welt) + "\n"
 
-                    shakeup_by_hand_report.append([[startingInput], \
-                                                    "\nOutput parameters from state calculation.\n\n" + \
-                                                    "Test\tHigher Configuration\tPercent\tOverlap\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
-                                                    startingOutput])
+                        report = manager.list()
+                        inputs = manager.list()
+                        
+                        inputs.append(startingInput)
+                        
+                        report.append(inputs)
+                        report.append("\nOutput parameters from state calculation.\n\n" + \
+                                            "Test\tHigher Configuration" + " " * max((len(higher_config) - 20), 0) + "\tPercent\tOverlap\t\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
+                                            startingOutput)
+                        
+                        reports.append(report)
+                else:
+                    reports = shakeup_by_hand_report[:]
                 
                 num = 0
                 
@@ -3971,13 +4047,13 @@ def cycle_by_hand():
                     print("\n               Label\t2J\tEigenvalue")
                     print("State numbers: " + shell_array_shakeup[i] + "\t" + str(jj) + "\t" + str(eigv))
                     
-                    print(shakeup_by_hand_report[num][1])
+                    print(reports[num][1])
                     
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
                     print("show <testNumber> - show the input file for the <testNumber> test.")
-                    print("exit - stop cycling the 1 hole states by hand.")
+                    print("exit - stop cycling the shake-up states by hand.")
                     
                     inp = input().strip()
                     while inp != "next" and inp != "prev" and inp != "edit" and inp != "exit":
@@ -3985,12 +4061,12 @@ def cycle_by_hand():
                             if len(inp.split()) == 2:
                                 args = inp.split()[1]
                                 try:
-                                    testNum = int(args)
+                                    testNum = int(args) - 1
                                     
-                                    if testNum < len(shakeup_by_hand_report[num][0]):
-                                        showTest(shakeup_by_hand_report, num, testNum)
+                                    if testNum < len(reports[num][0]):
+                                        showTest(reports, num, testNum, shell_array_shakeup[i], str(jj), str(eigv))
                                     else:
-                                        print("The current number of test for this state is " + str(len(shakeup_by_hand_report[num][0])) + ", while " + str(testNum) + " was requested!!\n")
+                                        print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
                                 except:
                                     print("The argument <testNumber> was not an integer!!\n")
                             else:
@@ -4009,7 +4085,8 @@ def cycle_by_hand():
                         if num <= -1:
                             num = len(shakeup_by_hand) - 1
                     elif inp == "edit":
-                        p = Process(target = editCurrState, args = (shakeup_by_hand_report, currDir, currFileName, counter))
+                        os.system("nano " + currDir + "/" + currFileName + ".f05")
+                        p = Process(target = editCurrState, args = (reports, currDir, currFileName, num))
                         processes.append(p)
                         p.start()
                     elif inp == "exit":
@@ -4018,6 +4095,8 @@ def cycle_by_hand():
                 
                 for p in processes:
                     p.join()
+                
+                shakeup_by_hand_report = reports[:]
     else:
         print("\nNo shake-up states to cycle by hand...")
     
@@ -4718,11 +4797,15 @@ def midPrompt(partial_check=False):
         if calculate_3holes and calculate_shakeup:
             print("Files " + file_final_results_3holes + " and " + file_final_results_shakeup + "contain the results 3 holes and shakeup respectively, as well as a list of flagged states.")
         
-        #print("A helper script \"checkConvergence.py\" can also be used to check the convergence before continuing.")
-        #print("This script will tell you which states did not reach proper convergence.\n")
+        print("\n\n A helper function \"cycle_by_hand\" can also be used to check the convergence before continuing.")
+        print("This function will cycle through the states that need to be recalculated by hand, allow you to edit the input files and log the various tests.")
+        print("If you wish to use this function please type cycle")
+        print("\nTo re-write the flagged states' parameters please type GetParameters.")
+        print("If you would also like to change the parameter thresholds use GetParameters <energyThreshold> <overlapsThreshold>")
+        print("Updating the parameters with new thresholds will also update the states that will be cycled by the function.")
         
-        print("To re-check flagged states please type GetParameters.")
-        print("If you would also like to change the parameter thresholds use GetParameters <energyThreshold> <overlapsThreshold>\n")
+        print("\n\n")
+        
         print("If you would like to continue the rates calculation with the current states please type:\n")
         print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
         print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
@@ -4758,8 +4841,16 @@ def midPrompt(partial_check=False):
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_shakeup + ", for 1, 2 holes and shakeup states.\n\n")
                 else:
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
+            elif inp == "cycle":
+                cycle_by_hand()
             
-            print("To recheck flagged states please type GetParameters.")
+            print("\n\n If you would like to re-cycle through the by hand states please type cycle")
+            print("\nTo re-write the flagged states' parameters please type GetParameters.")
+            print("If you would also like to change the parameter thresholds use GetParameters <energyThreshold> <overlapsThreshold>")
+            print("Updating the parameters with new thresholds will also update the states that will be cycled by the function.")
+            
+            print("\n\n")
+            
             print("If you would like to continue the rates calculation with the current states please type:\n")
             print("All - A full rate calculation will be performed for diagram, auger and satellite (shake-off and shake-up) decays, including the spectra calculations afterwards.\n")
             print("Simple - A rate calculation will be performed for diagram and auger decays, including the spectra calculations afterwards.\n")
@@ -4790,8 +4881,15 @@ def midPrompt(partial_check=False):
             print("Files " + file_final_results_3holes + " and " + file_final_results_shakeup + "contain the results 3 holes and shakeup respectively, as well as a list of flagged states.")
         
         
-        print("To re-update the flagged states please type GetParameters.")
+        print("\n\n A helper function \"cycle_by_hand\" can also be used to check the convergence before continuing.")
+        print("This function will cycle through the states that need to be recalculated by hand, allow you to edit the input files and log the various tests.")
+        print("If you wish to use this function please type cycle")
+        print("\nTo re-write the flagged states' parameters please type GetParameters.")
         print("If you would also like to change the parameter thresholds use GetParameters <energyThreshold> <overlapsThreshold>")
+        print("Updating the parameters with new thresholds will also update the states that will be cycled by the function.")
+        
+        print("\n\n")
+        
         print("If you would like to continue the rates calculation with the current states please type continue\n")
         inp = input().strip()
         while inp != "continue":
@@ -4821,9 +4919,16 @@ def midPrompt(partial_check=False):
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", " + file_final_results_shakeup + ", for 1, 2 holes and shakeup states.\n\n")
                 else:
                     print("New flagged states parameters can be found in the files " + file_final_results + ", " + file_final_results_1hole + ", " + file_final_results_2holes + ", for both 1 and 2 holes states.\n\n")
+            elif inp == "cycle":
+                cycle_by_hand()
             
-            print("To recheck flagged states please type GetParameters.")
+            print("\n\n If you would like to re-cycle through the by hand states please type cycle")
+            print("\nTo re-write the flagged states' parameters please type GetParameters.")
             print("If you would also like to change the parameter thresholds use GetParameters <energyThreshold> <overlapsThreshold>")
+            print("Updating the parameters with new thresholds will also update the states that will be cycled by the function.")
+            
+            print("\n\n")
+            
             print("If you would like to continue the rates calculation with the current states please type continue.\n")
             inp = input().strip()
         
