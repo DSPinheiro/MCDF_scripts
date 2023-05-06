@@ -3592,7 +3592,12 @@ def GetParameters_full(from_files = False, read_1hole = True, read_2hole = True,
 
 
 
-def editCurrState(reports, currDir, currFileName, num):
+def editCurrState(reports, currRunningStates, uncheckedStates, currDir, currFileName, num):
+    currRunningStates.append(str(num + 1))
+    
+    # Show that the state is running in the console
+    reports[num][1] += "\t\t\t\t\t\t\t\tRunning...\n"
+    
     with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
         reports[num][0].append(''.join(currInput.readlines()))
     
@@ -3600,37 +3605,40 @@ def editCurrState(reports, currDir, currFileName, num):
     
     converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
 
+    uncheckedStates.append(str(num + 1))
+    
     testNum = len(reports[num][0])
     
-    userOutput = str(testNum) + "\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t\t" + str(Diff) + "\t\t" + str(welt) + "\n"
+    userOutput = str(len(reports[num][0])).ljust(8) + str(higher_config).center(len(str(higher_config)) + 2) + "\t" + str(highest_percent).center(12) + str(overlap).center(16) + str(accuracy).center(16) + str(Diff).center(16) + str(welt).center(16) + "\n"
     
-    reports[num][1] += userOutput
+    # Stop showing that this state is running in the console
+    reports[num][1] = reports[num][1].replace("\t\t\t\t\t\t\t\tRunning...\n", "")
+    
+    reports[num][1] = '\n'.join(reports[num][1].split("\n")[:(3 + len(reports[num][0]))]) + "\n" + userOutput + '\n'.join(reports[num][1].split("\n")[(3 + len(reports[num][0])):])
+    
+    if converged and Diff >= 0.0 and Diff <= diffThreshold and overlap < overlapsThreshold:
+        reports[num][1] += "\t\t\t\t\t\t\t\tCONVERGED!\n"
+    
+    # Remove this state from the running list
+    currRunningStates.remove(str(num + 1))    
 
 
-def showTest(reports, num, testNum, currDir, shell, jj, eigv):
+def showTest(reports, num, testNum, currDir, currFileName):
     if testNum == -1:
-        currFileName = shell + "_" + jj + "_" + eigv
         os.system("less " + currDir + "/" + currFileName + ".f06")
     else:
         print(reports[num][0][testNum])
         
         print("\n\nPress enter to continue.")
         inp = input()
+
+
+def loadTest(reports, num, testNum, currDir, currFileName):
+    with open(currDir + "/" + currFileName + ".f05", "w") as currInput:
+        currInput.write(reports[num][0][testNum])
     
-    os.system("clear")
     
-    print(str(num + 1) + " of " + str(len(reports)) + "\n")
-    
-    print("\n               Label\t2J\tEigenvalue")
-    print("State numbers: " + shell + "\t" + jj + "\t" + eigv)
-    
-    print(reports[num][1])
-    
-    print("\n\nCommands:")
-    print("next / prev - move between states.")
-    print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
-    print("show <testNumber> - show the input file for the <testNumber> test.")
-    print("exit - stop cycling the 1 hole states by hand.")
+
 
 
 def cycle_by_hand():
@@ -3654,6 +3662,10 @@ def cycle_by_hand():
                 # list of strings with the tested input files
                 # string with the terminal log
                 reports = manager.list()
+                # list for the running states
+                currRunningStates = manager.list()
+                # list for the states that have finished and have not been visited
+                uncheckedStates = manager.list()
                 
                 if len(radiative_by_hand_report) == 0:
                     print("Initializing parameters for the 1 hole states by hand...")
@@ -3667,8 +3679,8 @@ def cycle_by_hand():
                             startingInput = ''.join(currInput.readlines())
                                             
                         converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
-
-                        startingOutput = "1\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t\t" + str(Diff) + "\t\t" + str(welt) + "\n"
+                        
+                        startingOutput = str(1).ljust(8) + str(higher_config).center(len(higher_config) + 2) + "\t" + str(highest_percent).center(12) + str(overlap).center(16) + str(accuracy).center(16) + str(Diff).center(16) + str(welt).center(16) + "\n"
 
                         report = manager.list()
                         inputs = manager.list()
@@ -3677,12 +3689,24 @@ def cycle_by_hand():
                         
                         report.append(inputs)
                         report.append("\nOutput parameters from state calculation.\n\n" + \
-                                            "Test\tHigher Configuration" + " " * max((len(higher_config) - 20), 0) + "\tPercent\tOverlap\t\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
-                                            startingOutput)
+                                            "Test".ljust(8) + "Higher Configuration".center(len(higher_config) + 2) + "\t" + "Percent".center(12) + "Overlap".center(16) + "Accuracy".center(16) + "Energy Diff".center(16) + "Energy Welton".center(16) + "\n" + \
+                                            startingOutput + \
+                                            "\n Pending: N/A." + \
+                                            "\n To Check: N/A.\n\n")
                         
                         reports.append(report)
                 else:
-                    reports = radiative_by_hand_report[:]
+                    for report in radiative_by_hand_report:
+                        reportM = manager.list()
+                        inputs = manager.list()
+                        
+                        for inputString in report[0]:
+                            inputs.append(inputString)
+                        
+                        reportM.append(inputs)
+                        reportM.append(report[1])
+                        
+                        reports.append(reportM)
                 
                 num = 0
                 
@@ -3690,6 +3714,12 @@ def cycle_by_hand():
                     os.system("clear")
 
                     print(str(num + 1) + " of " + str(len(radiative_by_hand)) + "\n")
+                    
+                    if str(num + 1) in uncheckedStates:
+                        uncheckedStates.remove(str(num + 1))
+                    elif str(num + 1) in currRunningStates:
+                        if "Running" not in reports[num][1]:
+                            reports[num][1] += "\t\t\t\t\t\t\t\tRunning...\n"
                     
                     counter = radiative_by_hand[num]
 
@@ -3701,11 +3731,18 @@ def cycle_by_hand():
                     print("\n               Label\t2J\tEigenvalue")
                     print("State numbers: " + shell_array[i] + "\t" + str(jj) + "\t" + str(eigv))
                     
+                    # Update the list of running states
+                    reports[num][1] = re.sub(r"(?<=Pending: ).*[.]", (', '.join(currRunningStates) + "." if len(currRunningStates) > 0 else "N/A."), reports[num][1])
+                    # Update the list of unchecked states
+                    reports[num][1] = re.sub(r"(?<=To Check: ).*[.]", (', '.join(uncheckedStates) + "." if len(uncheckedStates) > 0 else "N/A."), reports[num][1])
+                    
                     print(reports[num][1])
                     
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
+                    print("cd <stateNumber> - jump to state <stateNumber>.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
+                    print("load <testNumber> - load the input file for the <testNumber> test and rerun the calculation.")
                     print("show <testNumber> - show the input file for the <testNumber> test. If <testNumber> is 0 the current output is shown")
                     print("exit - stop cycling the 1 hole states by hand.")
                     
@@ -3718,7 +3755,41 @@ def cycle_by_hand():
                                     testNum = int(args) - 1
                                     
                                     if testNum < len(reports[num][0]):
-                                        showTest(reports, num, testNum, currDir, shell_array[i], str(jj), str(eigv))
+                                        showTest(reports, num, testNum, currDir, currFileName)
+                                        break
+                                    else:
+                                        print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
+                                except ValueError:
+                                    print("The argument <testNumber> was not an integer!!\n")
+                            else:
+                                print("No testNumber was provided in the input!!\n")
+                        elif "cd" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    stateNum = int(args) - 1
+                                    
+                                    if stateNum < len(reports):
+                                        num = stateNum
+                                        break
+                                    else:
+                                        print("The current number of states by hand for these configurations " + str(len(reports)) + ", while " + str(stateNum + 1) + " was requested!!\n")
+                                except ValueError:
+                                    print("The argument <stateNumber> was not an integer!!\n")
+                            else:
+                                print("No stateNumber was provided in the input!!\n")
+                        elif "load" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    testNum = int(args) - 1
+                                    
+                                    if testNum < len(reports[num][0]):
+                                        loadTest(reports, num, testNum, currDir, currFileName)
+                                        p = Process(target = editCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
+                                        processes.append(p)
+                                        p.start()
+                                        break
                                     else:
                                         print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
                                 except ValueError:
@@ -3726,7 +3797,7 @@ def cycle_by_hand():
                             else:
                                 print("No testNumber was provided in the input!!\n")
                         else:
-                            print("keyword must be next, prev, edit, show or exit!!!\n")
+                            print("keyword must be next, prev, cd, edit, show or exit!!!\n")
                         
                         inp = input().strip()
                     
@@ -3740,7 +3811,7 @@ def cycle_by_hand():
                             num = len(radiative_by_hand) - 1
                     elif inp == "edit":
                         os.system("nano " + currDir + "/" + currFileName + ".f05")
-                        p = Process(target = editCurrState, args = (reports, currDir, currFileName, num))
+                        p = Process(target = editCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
                         processes.append(p)
                         p.start()
                     elif inp == "exit":
@@ -3750,7 +3821,10 @@ def cycle_by_hand():
                 for p in processes:
                     p.join()
                 
-                radiative_by_hand_report = reports[:]
+                radiative_by_hand_report = []
+                
+                for report in reports:
+                    radiative_by_hand_report.append([[inputString for inputString in report[0]], report[1]])
     else:
         print("\nNo 1 hole states to cycle by hand...")
     
@@ -3770,6 +3844,10 @@ def cycle_by_hand():
                 # list of strings with the tested input files
                 # string with the terminal log
                 reports = manager.list()
+                # list for the running states
+                currRunningStates = manager.list()
+                # list for the states that have finished and have not been visited
+                uncheckedStates = manager.list()
                 
                 if len(auger_by_hand_report) == 0:
                     print("Initializing parameters for the 2 hole states by hand...")
@@ -3784,7 +3862,7 @@ def cycle_by_hand():
                                             
                         converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
 
-                        startingOutput = "1\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t\t" + str(Diff) + "\t\t" + str(welt) + "\n"
+                        startingOutput = str(1).ljust(8) + str(higher_config).center(len(higher_config) + 2) + "\t" + str(highest_percent).center(12) + str(overlap).center(16) + str(accuracy).center(16) + str(Diff).center(16) + str(welt).center(16) + "\n"
 
                         report = manager.list()
                         inputs = manager.list()
@@ -3793,13 +3871,24 @@ def cycle_by_hand():
                         
                         report.append(inputs)
                         report.append("\nOutput parameters from state calculation.\n\n" + \
-                                            "Test\tHigher Configuration" + " " * max((len(higher_config) - 20), 0) + "\tPercent\tOverlap\t\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
-                                            startingOutput)
-                        
+                                            "Test".ljust(8) + "Higher Configuration".center(len(higher_config) + 2) + "\t" + "Percent".center(12) + "Overlap".center(16) + "Accuracy".center(16) + "Energy Diff".center(16) + "Energy Welton".center(16) + "\n" + \
+                                            startingOutput + \
+                                            "\n Pending: N/A." + \
+                                            "\n To Check: N/A.\n\n")
                         
                         reports.append(report)
                 else:
-                    reports = auger_by_hand_report[:]
+                    for report in auger_by_hand_report:
+                        reportM = manager.list()
+                        inputs = manager.list()
+                        
+                        for inputString in report[0]:
+                            inputs.append(inputString)
+                        
+                        reportM.append(inputs)
+                        reportM.append(report[1])
+                        
+                        reports.append(reportM)
                 
                 num = 0
                 
@@ -3807,6 +3896,12 @@ def cycle_by_hand():
                     os.system("clear")
 
                     print(str(num + 1) + " of " + str(len(auger_by_hand)) + "\n")
+                    
+                    if str(num + 1) in uncheckedStates:
+                        uncheckedStates.remove(str(num + 1))
+                    elif str(num + 1) in currRunningStates:
+                        if "Running" not in reports[num][1]:
+                            reports[num][1] += "\t\t\t\t\t\t\t\tRunning...\n"
                     
                     counter = auger_by_hand[num]
 
@@ -3818,11 +3913,18 @@ def cycle_by_hand():
                     print("\n               Label\t2J\tEigenvalue")
                     print("State numbers: " + shell_array_2holes[i] + "\t" + str(jj) + "\t" + str(eigv))
                     
+                    # Update the list of running states
+                    reports[num][1] = re.sub(r"(?<=Pending: ).*[.]", (', '.join(currRunningStates) + "." if len(currRunningStates) > 0 else "N/A."), reports[num][1])
+                    # Update the list of unchecked states
+                    reports[num][1] = re.sub(r"(?<=To Check: ).*[.]", (', '.join(uncheckedStates) + "." if len(uncheckedStates) > 0 else "N/A."), reports[num][1])
+                    
                     print(reports[num][1])
                     
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
+                    print("cd <stateNumber> - jump to state <stateNumber>.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
+                    print("load <testNumber> - load the input file for the <testNumber> test and rerun the calculation.")
                     print("show <testNumber> - show the input file for the <testNumber> test. If <testNumber> is 0 the current output is shown")
                     print("exit - stop cycling the 2 hole states by hand.")
                     
@@ -3835,7 +3937,41 @@ def cycle_by_hand():
                                     testNum = int(args) - 1
                                     
                                     if testNum < len(reports[num][0]):
-                                        showTest(reports, num, testNum, currDir, shell_array_2holes[i], str(jj), str(eigv))
+                                        showTest(reports, num, testNum, currDir, currFileName)
+                                        break
+                                    else:
+                                        print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
+                                except ValueError:
+                                    print("The argument <testNumber> was not an integer!!\n")
+                            else:
+                                print("No testNumber was provided in the input!!\n")
+                        elif "cd" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    stateNum = int(args) - 1
+                                    
+                                    if stateNum < len(reports):
+                                        num = stateNum
+                                        break
+                                    else:
+                                        print("The current number of states by hand for these configurations " + str(len(reports)) + ", while " + str(stateNum + 1) + " was requested!!\n")
+                                except ValueError:
+                                    print("The argument <stateNumber> was not an integer!!\n")
+                            else:
+                                print("No stateNumber was provided in the input!!\n")
+                        elif "load" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    testNum = int(args) - 1
+                                    
+                                    if testNum < len(reports[num][0]):
+                                        loadTest(reports, num, testNum, currDir, currFileName)
+                                        p = Process(target = editCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
+                                        processes.append(p)
+                                        p.start()
+                                        break
                                     else:
                                         print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
                                 except ValueError:
@@ -3843,7 +3979,8 @@ def cycle_by_hand():
                             else:
                                 print("No testNumber was provided in the input!!\n")
                         else:
-                            print("keyword must be next, prev, edit, show or exit!!!\n")
+                            print("keyword must be next, prev, cd, edit, show or exit!!!\n")
+                        
                         
                         inp = input().strip()
                     
@@ -3857,7 +3994,7 @@ def cycle_by_hand():
                             num = len(auger_by_hand) - 1
                     elif inp == "edit":
                         os.system("nano " + currDir + "/" + currFileName + ".f05")
-                        p = Process(target = editCurrState, args = (reports, currDir, currFileName, num))
+                        p = Process(target = editCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
                         processes.append(p)
                         p.start()
                     elif inp == "exit":
@@ -3867,7 +4004,10 @@ def cycle_by_hand():
                 for p in processes:
                     p.join()
                 
-                auger_by_hand_report = reports[:]
+                auger_by_hand_report = []
+                
+                for report in reports:
+                    auger_by_hand_report.append([[inputString for inputString in report[0]], report[1]])
     else:
         print("\nNo 2 hole states to cycle by hand...")
     
@@ -3887,6 +4027,10 @@ def cycle_by_hand():
                 # list of strings with the tested input files
                 # string with the terminal log
                 reports = manager.list()
+                # list for the running states
+                currRunningStates = manager.list()
+                # list for the states that have finished and have not been visited
+                uncheckedStates = manager.list()
                 
                 if len(sat_auger_by_hand_report) == 0:
                     print("Initializing parameters for the 3 hole states by hand...")
@@ -3901,7 +4045,7 @@ def cycle_by_hand():
                                             
                         converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
 
-                        startingOutput = "1\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t\t" + str(Diff) + "\t\t" + str(welt) + "\n"
+                        startingOutput = str(1).ljust(8) + str(higher_config).center(len(higher_config) + 2) + "\t" + str(highest_percent).center(12) + str(overlap).center(16) + str(accuracy).center(16) + str(Diff).center(16) + str(welt).center(16) + "\n"
 
                         report = manager.list()
                         inputs = manager.list()
@@ -3910,13 +4054,24 @@ def cycle_by_hand():
                         
                         report.append(inputs)
                         report.append("\nOutput parameters from state calculation.\n\n" + \
-                                            "Test\tHigher Configuration" + " " * max((len(higher_config) - 20), 0) + "\tPercent\tOverlap\t\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
-                                            startingOutput)
-                        
+                                            "Test".ljust(8) + "Higher Configuration".center(len(higher_config) + 2) + "\t" + "Percent".center(12) + "Overlap".center(16) + "Accuracy".center(16) + "Energy Diff".center(16) + "Energy Welton".center(16) + "\n" + \
+                                            startingOutput + \
+                                            "\n Pending: N/A." + \
+                                            "\n To Check: N/A.\n\n")
                         
                         reports.append(report)
                 else:
-                    reports = sat_auger_by_hand_report[:]
+                    for report in sat_auger_by_hand_report:
+                        reportM = manager.list()
+                        inputs = manager.list()
+                        
+                        for inputString in report[0]:
+                            inputs.append(inputString)
+                        
+                        reportM.append(inputs)
+                        reportM.append(report[1])
+                        
+                        reports.append(reportM)
                 
                 num = 0
                 
@@ -3924,6 +4079,12 @@ def cycle_by_hand():
                     os.system("clear")
 
                     print(str(num + 1) + " of " + str(len(sat_auger_by_hand)) + "\n")
+                    
+                    if str(num + 1) in uncheckedStates:
+                        uncheckedStates.remove(str(num + 1))
+                    elif str(num + 1) in currRunningStates:    
+                        if "Running" not in reports[num][1]:
+                            reports[num][1] += "\t\t\t\t\t\t\t\tRunning...\n"
                     
                     counter = sat_auger_by_hand[num]
 
@@ -3935,11 +4096,18 @@ def cycle_by_hand():
                     print("\n               Label\t2J\tEigenvalue")
                     print("State numbers: " + shell_array_3holes[i] + "\t" + str(jj) + "\t" + str(eigv))
                     
+                    # Update the list of running states
+                    reports[num][1] = re.sub(r"(?<=Pending: ).*[.]", (', '.join(currRunningStates) + "." if len(currRunningStates) > 0 else "N/A."), reports[num][1])
+                    # Update the list of unchecked states
+                    reports[num][1] = re.sub(r"(?<=To Check: ).*[.]", (', '.join(uncheckedStates) + "." if len(uncheckedStates) > 0 else "N/A."), reports[num][1])
+                    
                     print(reports[num][1])
                     
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
+                    print("cd <stateNumber> - jump to state <stateNumber>.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
+                    print("load <testNumber> - load the input file for the <testNumber> test and rerun the calculation.")
                     print("show <testNumber> - show the input file for the <testNumber> test. If <testNumber> is 0 the current output is shown")
                     print("exit - stop cycling the 3 hole states by hand.")
                     
@@ -3952,7 +4120,41 @@ def cycle_by_hand():
                                     testNum = int(args) - 1
                                     
                                     if testNum < len(reports[num][0]):
-                                        showTest(reports, num, testNum, currDir, shell_array_3holes[i], str(jj), str(eigv))
+                                        showTest(reports, num, testNum, currDir, currFileName)
+                                        break
+                                    else:
+                                        print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
+                                except ValueError:
+                                    print("The argument <testNumber> was not an integer!!\n")
+                            else:
+                                print("No testNumber was provided in the input!!\n")
+                        elif "cd" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    stateNum = int(args) - 1
+                                    
+                                    if stateNum < len(reports):
+                                        num = stateNum
+                                        break
+                                    else:
+                                        print("The current number of states by hand for these configurations " + str(len(reports)) + ", while " + str(stateNum + 1) + " was requested!!\n")
+                                except ValueError:
+                                    print("The argument <stateNumber> was not an integer!!\n")
+                            else:
+                                print("No stateNumber was provided in the input!!\n")
+                        elif "load" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    testNum = int(args) - 1
+                                    
+                                    if testNum < len(reports[num][0]):
+                                        loadTest(reports, num, testNum, currDir, currFileName)
+                                        p = Process(target = editCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
+                                        processes.append(p)
+                                        p.start()
+                                        break
                                     else:
                                         print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
                                 except ValueError:
@@ -3960,7 +4162,8 @@ def cycle_by_hand():
                             else:
                                 print("No testNumber was provided in the input!!\n")
                         else:
-                            print("keyword must be next, prev, edit, show or exit!!!\n")
+                            print("keyword must be next, prev, cd, edit, show or exit!!!\n")
+                        
                         
                         inp = input().strip()
                     
@@ -3974,7 +4177,7 @@ def cycle_by_hand():
                             num = len(sat_auger_by_hand) - 1
                     elif inp == "edit":
                         os.system("nano " + currDir + "/" + currFileName + ".f05")
-                        p = Process(target = editCurrState, args = (reports, currDir, currFileName, num))
+                        p = Process(target = editCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
                         processes.append(p)
                         p.start()
                     elif inp == "exit":
@@ -3984,7 +4187,10 @@ def cycle_by_hand():
                 for p in processes:
                     p.join()
                 
-                sat_auger_by_hand_report = reports[:]
+                sat_auger_by_hand_report = []
+                
+                for report in reports:
+                    sat_auger_by_hand_report.append([[inputString for inputString in report[0]], report[1]])
     else:
         print("\nNo 3 hole states to cycle by hand...")
     
@@ -4004,6 +4210,10 @@ def cycle_by_hand():
                 # list of strings with the tested input files
                 # string with the terminal log
                 reports = manager.list()
+                # list for the running states
+                currRunningStates = manager.list()
+                # list for the states that have finished and have not been visited
+                uncheckedStates = manager.list()
                 
                 if len(shakeup_by_hand_report) == 0:
                     print("Initializing parameters for the Shake-up states by hand...")
@@ -4018,7 +4228,7 @@ def cycle_by_hand():
                                             
                         converged, failed_orbital, overlap, higher_config, highest_percent, accuracy, Diff, welt = checkOutput(currDir, currFileName)
 
-                        startingOutput = "1\t" + str(higher_config) + "\t" + str(highest_percent) + "\t" + str(overlap) + "\t" + str(accuracy) + "\t\t" + str(Diff) + "\t\t" + str(welt) + "\n"
+                        startingOutput = str(1).ljust(8) + str(higher_config).center(len(higher_config) + 2) + "\t" + str(highest_percent).center(12) + str(overlap).center(16) + str(accuracy).center(16) + str(Diff).center(16) + str(welt).center(16) + "\n"
 
                         report = manager.list()
                         inputs = manager.list()
@@ -4027,12 +4237,24 @@ def cycle_by_hand():
                         
                         report.append(inputs)
                         report.append("\nOutput parameters from state calculation.\n\n" + \
-                                            "Test\tHigher Configuration" + " " * max((len(higher_config) - 20), 0) + "\tPercent\tOverlap\t\tAccuracy\tEnergy Diff\tEnergy Welton\n" + \
-                                            startingOutput)
+                                            "Test".ljust(8) + "Higher Configuration".center(len(higher_config) + 2) + "\t" + "Percent".center(12) + "Overlap".center(16) + "Accuracy".center(16) + "Energy Diff".center(16) + "Energy Welton".center(16) + "\n" + \
+                                            startingOutput + \
+                                            "\n Pending: N/A." + \
+                                            "\n To Check: N/A.\n\n")
                         
                         reports.append(report)
                 else:
-                    reports = shakeup_by_hand_report[:]
+                    for report in shakeup_by_hand_report:
+                        reportM = manager.list()
+                        inputs = manager.list()
+                        
+                        for inputString in report[0]:
+                            inputs.append(inputString)
+                        
+                        reportM.append(inputs)
+                        reportM.append(report[1])
+                        
+                        reports.append(reportM)
                 
                 num = 0
                 
@@ -4040,6 +4262,12 @@ def cycle_by_hand():
                     os.system("clear")
 
                     print(str(num + 1) + " of " + str(len(shakeup_by_hand)) + "\n")
+                    
+                    if str(num + 1) in uncheckedStates:
+                        uncheckedStates.remove(str(num + 1))
+                    elif str(num + 1) in currRunningStates:
+                        if "Running" not in reports[num][1]:
+                            reports[num][1] += "\t\t\t\t\t\t\t\tRunning...\n"
                     
                     counter = shakeup_by_hand[num]
 
@@ -4051,11 +4279,18 @@ def cycle_by_hand():
                     print("\n               Label\t2J\tEigenvalue")
                     print("State numbers: " + shell_array_shakeup[i] + "\t" + str(jj) + "\t" + str(eigv))
                     
+                    # Update the list of running states
+                    reports[num][1] = re.sub(r"(?<=Pending: ).*[.]", (', '.join(currRunningStates) + "." if len(currRunningStates) > 0 else "N/A."), reports[num][1])
+                    # Update the list of unchecked states
+                    reports[num][1] = re.sub(r"(?<=To Check: ).*[.]", (', '.join(uncheckedStates) + "." if len(uncheckedStates) > 0 else "N/A."), reports[num][1])
+                    
                     print(reports[num][1])
                     
                     print("\n\nCommands:")
                     print("next / prev - move between states.")
+                    print("cd <stateNumber> - jump to state <stateNumber>.")
                     print("edit - modify the input file. The state calculation will be executed when you exit the editor.")
+                    print("load <testNumber> - load the input file for the <testNumber> test and rerun the calculation.")
                     print("show <testNumber> - show the input file for the <testNumber> test. If <testNumber> is 0 the current output is shown")
                     print("exit - stop cycling the shake-up states by hand.")
                     
@@ -4068,7 +4303,41 @@ def cycle_by_hand():
                                     testNum = int(args) - 1
                                     
                                     if testNum < len(reports[num][0]):
-                                        showTest(reports, num, testNum, currDir, shell_array_shakeup[i], str(jj), str(eigv))
+                                        showTest(reports, num, testNum, currDir, currFileName)
+                                        break
+                                    else:
+                                        print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
+                                except ValueError:
+                                    print("The argument <testNumber> was not an integer!!\n")
+                            else:
+                                print("No testNumber was provided in the input!!\n")
+                        elif "cd" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    stateNum = int(args) - 1
+                                    
+                                    if stateNum < len(reports):
+                                        num = stateNum
+                                        break
+                                    else:
+                                        print("The current number of states by hand for these configurations " + str(len(reports)) + ", while " + str(stateNum + 1) + " was requested!!\n")
+                                except ValueError:
+                                    print("The argument <stateNumber> was not an integer!!\n")
+                            else:
+                                print("No stateNumber was provided in the input!!\n")
+                        elif "load" in inp:
+                            if len(inp.split()) == 2:
+                                args = inp.split()[1]
+                                try:
+                                    testNum = int(args) - 1
+                                    
+                                    if testNum < len(reports[num][0]):
+                                        loadTest(reports, num, testNum, currDir, currFileName)
+                                        p = Process(target = editCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
+                                        processes.append(p)
+                                        p.start()
+                                        break
                                     else:
                                         print("The current number of tests for this state is " + str(len(reports[num][0])) + ", while " + str(testNum + 1) + " was requested!!\n")
                                 except ValueError:
@@ -4076,7 +4345,8 @@ def cycle_by_hand():
                             else:
                                 print("No testNumber was provided in the input!!\n")
                         else:
-                            print("keyword must be next, prev, edit, show or exit!!!\n")
+                            print("keyword must be next, prev, cd, edit, show or exit!!!\n")
+                        
                         
                         inp = input().strip()
                     
@@ -4090,7 +4360,7 @@ def cycle_by_hand():
                             num = len(shakeup_by_hand) - 1
                     elif inp == "edit":
                         os.system("nano " + currDir + "/" + currFileName + ".f05")
-                        p = Process(target = editCurrState, args = (reports, currDir, currFileName, num))
+                        p = Process(target = editCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
                         processes.append(p)
                         p.start()
                     elif inp == "exit":
@@ -4100,7 +4370,10 @@ def cycle_by_hand():
                 for p in processes:
                     p.join()
                 
-                shakeup_by_hand_report = reports[:]
+                shakeup_by_hand_report = []
+                
+                for report in reports:
+                    shakeup_by_hand_report.append([[inputString for inputString in report[0]], report[1]])
     else:
         print("\nNo shake-up states to cycle by hand...")
     
