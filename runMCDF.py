@@ -3660,7 +3660,8 @@ def loadReportsFile(file_final_results_reports, reports):
         for line in reportsFile:
             inputs = line.strip().split("|")[0].split(";")
             outputs = line.strip().split("|")[1]
-            reports.append([inputs, outputs])
+            if "CONVERGED" not in outputs:
+                reports.append([inputs, outputs])
 
 
 
@@ -3747,7 +3748,7 @@ def modifyInputFile(currDir, currFileName, orb_mods, mod, orbs):
                         inputLines = inputString.split()
                         orb_index = [i for i, line in enumerate(inputLines) if "end" in line][-1]
                         
-                        inputLines.insert("    " + orb_mods[orb] + "\n", orb_index)
+                        inputLines.insert(orb_index, "    " + orb_mods[orb] + "\n")
                         
                         inputString = ''.join(inputLines)
                 else:
@@ -3762,7 +3763,7 @@ def modifyInputFile(currDir, currFileName, orb_mods, mod, orbs):
                     orb_index = [i for i, line in enumerate(inputLines) if "modsolv_orb=n" in line][0] + 1
                     
                     inputLines[orb_index - 1] = inputLines[orb_index - 1].replace("n", "y")
-                    inputLines.insert("    " + orb_mods[orb] + "\n", orb_index)
+                    inputLines.insert(orb_index, "    " + orb_mods[orb] + "\n")
                     
                     inputString = ''.join(inputLines[:(orb_index + 1)]) + modsolv_orb_string + ''.join(inputLines[(orb_index + 1):])
                 else:
@@ -3774,6 +3775,72 @@ def modifyInputFile(currDir, currFileName, orb_mods, mod, orbs):
         inputFile.write(inputString)
     
     return True
+
+
+def showCommands(states_mod):
+    print("\n\nCommands:")
+    print("next / prev - move between states.")
+    print("cd <stateNumber> - jump to state <stateNumber>.")
+    print("edit [[<rm/add> <orb_label>,...]|[<set> <cycles>]] - modify the input file. The state calculation will be executed when you exit the editor.")
+    print("\tNo parameters - the file will be opened with nano.")
+    print("\t<rm/add> - edit the input file by removing <rm> or adding <add> the orbital corresponding to the <orb_label>.")
+    print("\t<orb_label>,... - space seperated orbital labels to add or remove from the input file. This has to be present in the modsolv_orb file.")
+    print("\t<set> - if the option is set then we will set the number of <cycles> for this calculation.")
+    print("\t<cycles> - number of cycles to set for the calculation.")
+    print("load <testNumber> - load the input file for the <testNumber> test and rerun the calculation.")
+    print("show <testNumber> - show the input file for the <testNumber> test. If no <testNumber> is provided the current output is shown.")
+    print("flag - toggle the flag for this state as best convergence, even though it is not under thresholds.")
+    print("mods - edit the modsolv_orb file where the orbital modifiers are stored.")
+    print("save - save the current reports to file.")
+    print("exit - stop cycling the " + states_mod + " states by hand.")
+    
+    print("Press enter to continue.")
+    inp = input()
+
+
+def updateInterface(num, by_hand, uncheckedStates, currRunningStates, reports, shells, i, jj, eigv, lastCalculatedState):
+    os.system("clear")
+
+    print(str(num + 1) + " of " + str(len(by_hand)) + "\n")
+    
+    if str(num + 1) in uncheckedStates:
+        uncheckedStates.remove(str(num + 1))
+    elif str(num + 1) in currRunningStates:
+        if "Running" not in reports[num][1]:
+            reports[num][1] += "\t\t\t\t\t\t\t\tRunning...\n"
+    
+    print("\n               Label\t2J\tEigenvalue")
+    print("State numbers: " + shells[i] + "\t" + str(jj) + "\t" + str(eigv))
+    
+    # Update the list of running states
+    reports[num][1] = re.sub(r"(?<=Pending: ).*[.]", (', '.join(currRunningStates) + "." if len(currRunningStates) > 0 else "N/A."), reports[num][1])
+    # Update the list of unchecked states
+    reports[num][1] = re.sub(r"(?<=To Check: ).*[.]", (', '.join(uncheckedStates) + "." if len(uncheckedStates) > 0 else "N/A."), reports[num][1])
+    # Update the last calculated state
+    reports[num][1] = re.sub(r"(?<=Last: ).*[.]", lastCalculatedState, reports[num][1])
+    
+    print(reports[num][1])                    
+    
+    print("Type help for a list of the commands.")
+
+
+def cleanPending(processes, maxOpenFiles):
+    if len(processes) >= maxOpenFiles:
+        os.system("clear")
+        print("Too many open files! Synchronizing all open processes...")
+        
+        while len(processes) > maxOpenFiles:
+            pending = len(processes)
+            to_delete = []
+            for i, p in enumerate(processes):
+                print("Pending processes: " + str(pending), end="\r")
+                p.join(1)
+                if not p.is_alive():
+                    pending -= 1
+                    to_delete.append(i)
+            
+            for i in to_delete:
+                del processes[i]
 
 
 def cycle_list(by_hand, states_mod, states_dir, by_hand_report, calculatedStates, shells, file_final_results_reports, maxOpenFiles = 1024):
@@ -3795,6 +3862,8 @@ def cycle_list(by_hand, states_mod, states_dir, by_hand_report, calculatedStates
                 currRunningStates = manager.list()
                 # list for the states that have finished and have not been visited
                 uncheckedStates = manager.list()
+                
+                lastCalculatedState = -1
                 
                 orb_mods = {}
                 if os.path.isfile(file_standard_orb_mods):
@@ -3848,7 +3917,8 @@ def cycle_list(by_hand, states_mod, states_dir, by_hand_report, calculatedStates
                                                 "Test".ljust(8) + "Higher Configuration".center(len(higher_config) + 2) + "\t" + "Percent".center(12) + "Overlap".center(16) + "Accuracy".center(16) + "Energy Diff".center(16) + "Energy Welton".center(16) + "\n" + \
                                                 startingOutput + \
                                                 "\n Pending: N/A." + \
-                                                "\n To Check: N/A.\n\n")
+                                                "\n To Check: N/A." + \
+                                                "\n Last: -1.\n\n")
                             
                             reports.append(report)
                 else:
@@ -3867,48 +3937,15 @@ def cycle_list(by_hand, states_mod, states_dir, by_hand_report, calculatedStates
                 num = 0
                 
                 while True:
-                    os.system("clear")
-
-                    print(str(num + 1) + " of " + str(len(by_hand)) + "\n")
-                    
-                    if str(num + 1) in uncheckedStates:
-                        uncheckedStates.remove(str(num + 1))
-                    elif str(num + 1) in currRunningStates:
-                        if "Running" not in reports[num][1]:
-                            reports[num][1] += "\t\t\t\t\t\t\t\tRunning...\n"
-                    
                     counter = by_hand[num]
 
                     i, jj, eigv = calculatedStates[counter][0]
-                    
+
                     currDir = rootDir + "/" + directory_name + "/" + states_dir + "/" + shells[i] + "/2jj_" + str(jj) + "/eigv_" + str(eigv)
                     currFileName = shells[i] + "_" + str(jj) + "_" + str(eigv)
                     
-                    print("\n               Label\t2J\tEigenvalue")
-                    print("State numbers: " + shells[i] + "\t" + str(jj) + "\t" + str(eigv))
-                    
-                    # Update the list of running states
-                    reports[num][1] = re.sub(r"(?<=Pending: ).*[.]", (', '.join(currRunningStates) + "." if len(currRunningStates) > 0 else "N/A."), reports[num][1])
-                    # Update the list of unchecked states
-                    reports[num][1] = re.sub(r"(?<=To Check: ).*[.]", (', '.join(uncheckedStates) + "." if len(uncheckedStates) > 0 else "N/A."), reports[num][1])
-                    
-                    print(reports[num][1])
-                    
-                    print("\n\nCommands:")
-                    print("next / prev - move between states.")
-                    print("cd <stateNumber> - jump to state <stateNumber>.")
-                    print("edit [[<rm/add> <orb_label>,...]|[<set> <cycles>]] - modify the input file. The state calculation will be executed when you exit the editor.")
-                    print("\tNo parameters - the file will be opened with nano.")
-                    print("\t<rm/add> - edit the input file by removing <rm> or adding <add> the orbital corresponding to the <orb_label>.")
-                    print("\t<orb_label>,... - space seperated orbital labels to add or remove from the input file. This has to be present in the modsolv_orb file.")
-                    print("\t<set> - if the option is set then we will set the number of <cycles> for this calculation.")
-                    print("\t<cycles> - number of cycles to set for the calculation.")
-                    print("load <testNumber> - load the input file for the <testNumber> test and rerun the calculation.")
-                    print("show <testNumber> - show the input file for the <testNumber> test. If no <testNumber> is provided the current output is shown.")
-                    print("flag - toggle the flag for this state as best convergence, even though it is not under thresholds.")
-                    print("mods - edit the modsolv_orb file where the orbital modifiers are stored.")
-                    print("exit - stop cycling the " + states_mod + " states by hand.")
-                    
+                    updateInterface(num, by_hand, uncheckedStates, currRunningStates, reports, shells, i, jj, eigv, lastCalculatedState)
+
                     while True:
                         try:
                             inp = input().strip()
@@ -3916,7 +3953,7 @@ def cycle_list(by_hand, states_mod, states_dir, by_hand_report, calculatedStates
                         except UnicodeDecodeError:
                             print("Error reading input!!")
                     
-                    while inp != "next" and inp != "prev" and inp != "exit" and inp != "flag" and inp != "mods":
+                    while inp != "next" and inp != "prev" and inp != "exit" and inp != "flag" and inp != "mods" and inp != "save" and inp != "help":
                         if "edit" in inp:
                             if len(inp.split()) >= 3:
                                 mod = inp.split()[1]
@@ -3925,32 +3962,24 @@ def cycle_list(by_hand, states_mod, states_dir, by_hand_report, calculatedStates
                                 modifyed = modifyInputFile(currDir, currFileName, orb_mods, mod, orb)
                                 
                                 if modifyed:
-                                    if len(processes) >= maxOpenFiles:
-                                        os.system("clear")
-                                        print("Too many open files! Synchronizing all open processes...")
-                                        while len(processes) > 0:
-                                            print("Pending processes: " + str(len(processes)), end="\r")
-                                            processes[0].join()
-                                            del processes[0]
+                                    cleanPending(processes, maxOpenFiles)
 
                                     p = Process(target = executeCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
                                     processes.append(p)
                                     p.start()
+                                    if num > lastCalculatedState:
+                                        lastCalculatedState = num
                                     break
                             elif inp == "edit":
                                 os.system("nano " + currDir + "/" + currFileName + ".f05")
                                 
-                                if len(processes) >= maxOpenFiles:
-                                    os.system("clear")
-                                    print("Too many open files! Synchronizing all open processes...")
-                                    while len(processes) > 0:
-                                        print("Pending processes: " + str(len(processes)), end="\r")
-                                        processes[0].join()
-                                        del processes[0]
+                                cleanPending(processes, maxOpenFiles)
                                 
                                 p = Process(target = executeCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
                                 processes.append(p)
                                 p.start()
+                                if num > lastCalculatedState:
+                                    lastCalculatedState = num
                                 break
                             else:
                                 print("Error parsing arguments for input!!\n")
@@ -3996,16 +4025,12 @@ def cycle_list(by_hand, states_mod, states_dir, by_hand_report, calculatedStates
                                     if testNum < len(reports[num][0]):
                                         loadTest(reports, num, testNum, currDir, currFileName)
                                         
-                                        if len(processes) >= maxOpenFiles:
-                                            os.system("clear")
-                                            print("Too many open files! Synchronizing all open processes...")
-                                            while len(processes) > 0:
-                                                print("Pending processes: " + str(len(processes)), end="\r")
-                                                processes[0].join()
-                                                del processes[0]
+                                        cleanPending(processes, maxOpenFiles)
                                         
                                         p = Process(target = executeCurrState, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num))
                                         processes.append(p)
+                                        if num > lastCalculatedState:
+                                            lastCalculatedState = num
                                         p.start()
                                         break
                                     else:
@@ -4031,8 +4056,8 @@ def cycle_list(by_hand, states_mod, states_dir, by_hand_report, calculatedStates
                     elif inp == "flag":
                         if "CONVERGED" not in reports[num][1] and "CONVERGENCE" not in reports[num][1]:
                             reports[num][1] += "\t\t\tWARNING: THIS STATE HAS BEEN FLAGGED AS BEST CONVERGENCE\n"
-                        elif "CONVERGENCE" not in reports[num][1]:
-                            reports[num][1].replace("\t\t\tWARNING: THIS STATE HAS BEEN FLAGGED AS BEST CONVERGENCE\n", "")
+                        elif "CONVERGENCE" in reports[num][1]:
+                            reports[num][1] = reports[num][1].replace("\t\t\tWARNING: THIS STATE HAS BEEN FLAGGED AS BEST CONVERGENCE\n", "")
                         else:
                             print("Cannot flag a state which has already converged!!!")
                             print("Press enter to continue.")
@@ -4041,6 +4066,10 @@ def cycle_list(by_hand, states_mod, states_dir, by_hand_report, calculatedStates
                         os.system("nano " + file_standard_orb_mods)
                         
                         readOrbModsFile(orb_mods)
+                    elif inp == "save":
+                        saveReportsFile(file_final_results_reports, by_hand_report)
+                    elif inp == "help":
+                        showCommands(states_mod)
                     elif inp == "exit":
                         break
                 
@@ -4052,8 +4081,8 @@ def cycle_list(by_hand, states_mod, states_dir, by_hand_report, calculatedStates
                 
                 for report in reports:
                     by_hand_report.append([[inputString for inputString in report[0]], report[1]])
-
-        saveReportsFile(file_final_results_reports, by_hand_report)
+            
+            saveReportsFile(file_final_results_reports, by_hand_report)
         
     else:
         print("\nNo " + states_mod + " states to cycle by hand...")
