@@ -28,7 +28,7 @@ parallel_max_length = 2097152
 # This is done to conserve disk space when calculating large sets
 # At ~10M transitions the results will occupy >300GB
 # In this case we calculate batches of 5M transitions and delete all results storing only the energy and rates for each transition
-max_transitions = 10e+6
+max_transitions = 5e+6
 
 
 # ---------------------------- #
@@ -311,7 +311,7 @@ class State:
         Returns:
             bool: True if the state calculation has converged
         """
-        return self.complete and self.Diff < diffThreshold and self.Diff >= 0.0 and self.overlap < overlapsThreshold and self.accuracy < accThreshold
+        return self.complete and self.Diff < diffThreshold and self.Diff >= 0.0 and abs(self.overlap) < overlapsThreshold and abs(self.accuracy) < accThreshold
     
     def badEnergy(self, diffThreshold: float, overlapsThreshold: float, accThreshold: float) -> bool:
         """Helper function to filter if this state convergence was due to bad energy difference
@@ -586,7 +586,7 @@ diffThreshold = 1.0
 # Overlap difference threshold value
 overlapsThreshold = 1E-6
 # Accuracy threshold value
-accThreshold = 1600.0
+accThreshold = 1000.0
 
 # --------------------------------------------------------------------- #
 # Variables to hold the string templates for MCDFGME input files (.f05) #
@@ -2040,7 +2040,12 @@ def checkOutput(currDir: str, currFileName: str, detailed: bool = False) -> \
                         if outputContent[cnt] == "\n":
                             break
                         else:
-                            percents.append((' '.join(outputContent[cnt].strip().split()[:-2]), float(outputContent[cnt].strip().split()[-2])))
+                            try:
+                                percent = float(outputContent[cnt].strip().split()[-2])
+                            except ValueError:
+                                break
+                            
+                            percents.append((' '.join(outputContent[cnt].strip().split()[:-2]), percent))
                         
                         cnt += 1
                     
@@ -2070,14 +2075,14 @@ def checkOutput(currDir: str, currFileName: str, detailed: bool = False) -> \
                                 if detailed:
                                     OverlapsDetail.append(''.join(outputContent[cnt].strip().split()[:3]))
                                 
-                                Overlaps.append(abs(float(outputContent[cnt].strip().split()[3])))
+                                Overlaps.append(float(outputContent[cnt].strip().split()[3]))
                             except ValueError:
                                 good_overlaps = False
                             try:
                                 if detailed:
                                     OverlapsDetail.append(''.join(outputContent[cnt].strip().split()[4:]))
                                 
-                                Overlaps.append(abs(float(outputContent[cnt].strip().split()[-1])))
+                                Overlaps.append(float(outputContent[cnt].strip().split()[-1]))
                             except ValueError:
                                 good_overlaps = False
                         
@@ -2101,9 +2106,9 @@ def checkOutput(currDir: str, currFileName: str, detailed: bool = False) -> \
         print("Error reading overlaps for: " + currFileName + ".f06")
     
     if detailed:
-        return first, failed_orbital, OverlapsDetail[Overlaps.index(max(Overlaps))] if len(Overlaps) > 0 else "< NA | NA > 1.0", higher_config, highest_percent, abs(accuracy), Diff, welt
+        return first, failed_orbital, OverlapsDetail[Overlaps.index(max(Overlaps, key=lambda x: abs(x)))] if len(Overlaps) > 0 else "< NA | NA > 1.0", higher_config, highest_percent, accuracy, Diff, welt
     
-    return first, failed_orbital, max(Overlaps) if len(Overlaps) > 0 else 1.0, higher_config, highest_percent, abs(accuracy), Diff, welt
+    return first, failed_orbital, max(Overlaps, key=lambda x: abs(x)) if len(Overlaps) > 0 else 1.0, higher_config, highest_percent, accuracy, Diff, welt
 
 
 def configureTransitionInputFile(template: str, \
@@ -2284,10 +2289,14 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
 
     Args:
         parallel_paths (List[str]): list with the paths to the executables for the transitions
-        parallel_final_src_paths (List[str]): list with the paths to the source of the .f09 wavefunction files
-        parallel_final_dst_paths (List[str]): list with the paths to the destination of the .f09 wavefunction files
+        parallel_initial_src_paths (List[str]): list with the paths to the source of the .f09 wavefunction files for the initial state
+        parallel_final_src_paths (List[str]): list with the paths to the source of the .f09 wavefunction files for the final state
+        parallel_initial_dst_paths (List[str]): list with the paths to the destination of the .f09 wavefunction files for the initial state
+        parallel_final_dst_paths (List[str]): list with the paths to the destination of the .f09 wavefunction files for the final state
+        log_file (str, optional): filename of the log file where to log the calculation for these transitions. Defaults to ''.
         transition_list (List[Transition], optional): list of transition where the execution is being done from. Defaults to [].
         log_line_header (str, optional): log header line to format the log file. Defaults to ''.
+        batch (bool, optional): flag to control if this calculation contains all the transitions or is just a sub batch. Defaults to False
     """
     
     parallel_max_paths = (len(parallel_paths) * parallel_max_length / len(' '.join(parallel_paths))) / 17
@@ -2344,7 +2353,16 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
             for wfi_dst, wff_dst in zip(parallel_initial_dst_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)], parallel_final_dst_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]):
                 os.remove(wfi_dst)
                 os.remove(wff_dst)
-        
+            
+            for path in parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]:
+                directory = '/'.join(path.split("/")[:-1]) + "/"
+                for filename in os.listdir(directory):
+                    if ".f05" not in filename and ".f06" not in filename:
+                        if os.path.isfile(directory + filename):
+                            os.remove(directory + filename)
+                        else:
+                            shutil.rmtree(directory + filename)
+            
         
         # COPY .f09 WAVEFUNCTION FILES FOR THE LAST BATCH
         for wf_src, wf_dst in zip(parallel_initial_src_paths[int((pl + 1) * parallel_max_paths):], parallel_initial_dst_paths[int((pl + 1) * parallel_max_paths):]):
@@ -2370,6 +2388,15 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
         for wfi_dst, wff_dst in zip(parallel_initial_dst_paths[int((pl + 1) * parallel_max_paths):], parallel_final_dst_paths[int((pl + 1) * parallel_max_paths):]):
             os.remove(wfi_dst)
             os.remove(wff_dst)
+        
+        for path in parallel_paths[int((pl + 1) * parallel_max_paths):]:
+            directory = '/'.join(path.split("/")[:-1]) + "/"
+            for filename in os.listdir(directory):
+                if ".f05" not in filename and ".f06" not in filename:
+                    if os.path.isfile(directory + filename):
+                        os.remove(directory + filename)
+                    else:
+                        shutil.rmtree(directory + filename)
     
     if batch:
         shutil.rmtree('/'.join(parallel_paths[0].split("/")[:-2]))
@@ -2477,7 +2504,7 @@ def writeResultsState(file_cycle_log: str, file_final_per_type: str, state_mod: 
 
 def writeResultsTransitionAuger(rates_file: str, transition_mod: str,
                            calculatedStates_i: List[State], calculatedStates_f: List[State], calculatedTransitions: List[Transition], \
-                           energies: List[float], rates: List[float], total_rates: Dict[list, float]):
+                           energies: List[float], rates: List[float], total_rates: Dict[tuple, float]):
     """Helper function to update the transition list and write it to the rates file
 
     Args:
@@ -2487,7 +2514,7 @@ def writeResultsTransitionAuger(rates_file: str, transition_mod: str,
         calculatedStates_f (List[State]): list of the calculated final states associated with the transitions
         calculatedTransitions (List[Transition]): list of the transitions to update and print
         rates (List[float]): list of the rates for the transitions
-        total_rates (Dict[list, float]): dictionary with the total rates form the initial LS shell for the transitions
+        total_rates (Dict[tuple, float]): dictionary with the total rates form the initial LS shell for the transitions
     """
     with open(rates_file, "w") as rates_f:
         rates_f.write("Calculated " + transition_mod + " Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\ttotal rate from IS\tbranching ratio\n")
@@ -2500,7 +2527,7 @@ def writeResultsTransitionAuger(rates_file: str, transition_mod: str,
                     break
                 
                 transition = calculatedTransitions[combCnt]
-                transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[state_i.qns()])
+                transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[tuple(state_i.qns())])
                 
                 
                 rates_f.write(str(combCnt) + "\t" + str(transition) + "\n")
@@ -2511,7 +2538,8 @@ def writeResultsTransitionAuger(rates_file: str, transition_mod: str,
 
 def writeResultsTransition(rates_file: str, transition_mod: str,  
                            calculatedStates: List[State], calculatedTransitions: List[Transition], \
-                           energies: List[float], rates: List[float], total_rates: Dict[list, float], multipole_array: list):
+                           energies: List[float], rates: List[float], total_rates: Dict[tuple, float], multipole_array: list, \
+                           shakeup_configs: bool = False):
     """Helper function to update the transition list and write it to the rates file
 
     Args:
@@ -2520,16 +2548,22 @@ def writeResultsTransition(rates_file: str, transition_mod: str,
         calculatedStates (List[State]): list of the calculated states associated with these transitions
         calculatedTransitions (List[Transition]): list of the transitions to update and print
         rates (List[float]): list of the rates for the transitions
-        total_rates (Dict[list, float]): dictionary of the total rates from the initial LS shell for the transitions
+        total_rates (Dict[tuple, float]): dictionary of the total rates from the initial LS shell for the transitions
         multipole_array (list): list of the multipoles and rates for each transition
+        shakeup_configs (bool, optional): flag for shakeup configurations, which is used to filter monopolar excitations. Defaults to False.
     """
     with open(rates_file, "w") as rates_f:
         rates_f.write("Calculated " + transition_mod + " Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\tnumber multipoles\ttotal rate from IS\tbranching ratio\n")
         combCnt = 0
         for counter, state_f in enumerate(calculatedStates):
             for state_i in calculatedStates[(counter + 1):]:
+                if shakeup_configs:
+                    # Filter for monopolar excitations
+                    if not checkMonopolar(state_i.shell, state_i.jj):
+                        continue
+                
                 transition = calculatedTransitions[combCnt]
-                transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[state_i.qns()], multipole_array[combCnt])
+                transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[tuple(state_i.qns())], multipole_array[combCnt])
                 
                 rates_f.write(str(combCnt) + "\t" + str(transition) + "\n")
                 
@@ -3061,7 +3095,7 @@ def sortCalculatedStates():
 
 
 def readTransition(currDir: str, currFileName: str, radiative: bool = True) -> \
-    Tuple[float, float, List[list]] | Tuple[float, float]:
+    Tuple[float, float, List[List[str]]] | Tuple[float, float]:
     """Function to read the output of the transition calculation.
     
     Args:
@@ -3071,7 +3105,7 @@ def readTransition(currDir: str, currFileName: str, radiative: bool = True) -> \
         Radiative transitions also have multipole rate decomposition
     
     Returns:
-        Tuple[float, float, List[list]] | Tuple[float, float]: always returns the energy and rate of the transition,
+        Tuple[float, float, List[List[str]]] | Tuple[float, float]: always returns the energy and rate of the transition,
         and if radiative is True also returns a list with the multipole decomposition.
     """
     energy = '0.0'
@@ -3095,7 +3129,7 @@ def readTransition(currDir: str, currFileName: str, radiative: bool = True) -> \
                             break
                         elif "s-1" in outputContent[cnt]:
                             vals = outputContent[cnt].strip().split()
-                            multipoles.append([vals[0], float(vals[1])])
+                            multipoles.append([vals[0], vals[1]])
                         
                         cnt += 1
             
@@ -3218,11 +3252,16 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
     rates: List[float] = []
     multipole_array: list = []
     
-    total_rates = dict.fromkeys([state.qns() for state in calculatedStates], 0.0)
+    total_rates = dict.fromkeys([tuple(state.qns()) for state in calculatedStates], 0.0)
     
     combCnt = 0
     for counter, state_f in enumerate(calculatedStates):
         for state_i in calculatedStates[(counter + 1):]:
+            if shakeup_configs:
+                # Filter for monopolar excitations
+                if not checkMonopolar(state_i.shell, state_i.jj):
+                    continue
+            
             print("Reading transition: " + str(combCnt + 1) + "/" + str(len(parallel_transition_paths)), end="\r")
             
             currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
@@ -3230,7 +3269,7 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
             
             energy, rate, multipoles = readTransition(currDir, currFileName) # type: ignore
             
-            total_rates[state_i.qns()] += float(rate)
+            total_rates[tuple(state_i.qns())] += float(rate)
             
             energies.append(energy)
             rates.append(rate)
@@ -3243,7 +3282,7 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
     
     writeResultsTransition(rates_file, transition_mod,
                            calculatedStates, calculatedTransitions, \
-                           energies, rates, total_rates, multipole_array)
+                           energies, rates, total_rates, multipole_array, shakeup_configs)
     
     
 
@@ -3357,7 +3396,7 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
     energies: List[float] = []
     rates: List[float] = []
     
-    total_rates = dict.fromkeys([state.qns() for state in calculatedStates_i], 0.0)
+    total_rates = dict.fromkeys([tuple(state.qns()) for state in calculatedStates_i], 0.0)
     
     combCnt = 0
     for state_i in calculatedStates_i:
@@ -3374,7 +3413,7 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
             
             energy, rate = readTransition(currDir, currFileName, False) # type: ignore
             
-            total_rates[state_i.qns()] += float(rate)
+            total_rates[tuple(state_i.qns())] += float(rate)
             
             energies.append(energy)
             rates.append(rate)
@@ -3516,37 +3555,37 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     print("\nCalculating total level widths for diagram, auger and satellite transitions...\n")
     
     
-    rate_level_radiative = dict.fromkeys([state.qns() for state in calculated1holeStates], 0.0)
-    rate_level_auger = dict.fromkeys([state.qns() for state in calculated1holeStates], 0.0)
-    rate_level_radiative_sat = dict.fromkeys([state.qns() for state in calculated2holesStates], 0.0)
+    rate_level_radiative = dict.fromkeys([tuple(state.qns()) for state in calculated1holeStates], 0.0)
+    rate_level_auger = dict.fromkeys([tuple(state.qns()) for state in calculated1holeStates], 0.0)
+    rate_level_radiative_sat = dict.fromkeys([tuple(state.qns()) for state in calculated2holesStates], 0.0)
     
     if calculate_3holes:
-        rate_level_auger_sat = dict.fromkeys([state.qns() for state in calculated2holesStates], 0.0)
+        rate_level_auger_sat = dict.fromkeys([tuple(state.qns()) for state in calculated2holesStates], 0.0)
     if calculate_shakeup:
-        rate_level_radiative_shakeup = dict.fromkeys([state.qns() for state in calculatedShakeupStates], 0.0)
+        rate_level_radiative_shakeup = dict.fromkeys([tuple(state.qns()) for state in calculatedShakeupStates], 0.0)
     
-    rate_level = dict.fromkeys([state.qns() for state in calculated1holeStates], 0.0)
-    rate_level_ev = dict.fromkeys([state.qns() for state in calculated1holeStates], 0.0)
+    rate_level = dict.fromkeys([tuple(state.qns()) for state in calculated1holeStates], 0.0)
+    rate_level_ev = dict.fromkeys([tuple(state.qns()) for state in calculated1holeStates], 0.0)
     
-    rate_level_sat = dict.fromkeys([state.qns() for state in calculated2holesStates], 0.0)
-    rate_level_sat_ev = dict.fromkeys([state.qns() for state in calculated2holesStates], 0.0)
+    rate_level_sat = dict.fromkeys([tuple(state.qns()) for state in calculated2holesStates], 0.0)
+    rate_level_sat_ev = dict.fromkeys([tuple(state.qns()) for state in calculated2holesStates], 0.0)
     
     if calculate_3holes:
-        rate_level_sat_auger = dict.fromkeys([state.qns() for state in calculated3holesStates], 0.0)
-        rate_level_sat_auger_ev = dict.fromkeys([state.qns() for state in calculated3holesStates], 0.0)
+        rate_level_sat_auger = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], 0.0)
+        rate_level_sat_auger_ev = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], 0.0)
     
     if calculate_shakeup:
-        rate_level_shakeup = dict.fromkeys([state.qns() for state in calculatedShakeupStates], 0.0)
-        rate_level_shakeup_ev = dict.fromkeys([state.qns() for state in calculatedShakeupStates], 0.0)
+        rate_level_shakeup = dict.fromkeys([tuple(state.qns()) for state in calculatedShakeupStates], 0.0)
+        rate_level_shakeup_ev = dict.fromkeys([tuple(state.qns()) for state in calculatedShakeupStates], 0.0)
     
     
     # Radiative and auger level widths
     
     for transition in calculatedRadiativeTransitions:
-        rate_level_radiative[transition.qnsi()] += transition.rate
+        rate_level_radiative[tuple(transition.qnsi())] += transition.rate
 	
     for transition in calculatedAugerTransitions:
-        rate_level_auger[transition.qnsi()] += transition.rate
+        rate_level_auger[tuple(transition.qnsi())] += transition.rate
     
     for state_i in rate_level:
         rate_level[state_i] = rate_level_radiative[state_i] + rate_level_auger[state_i]
@@ -3555,15 +3594,15 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     
     # Shake-off and shake-off auger widths
     
-    fluor_sat = dict.fromkeys([state.qns() for state in calculated2holesStates], 0.0)
-    shell_fl_dia = dict.fromkeys([state.qns() for state in calculated2holesStates], "")
+    fluor_sat = dict.fromkeys([tuple(state.qns()) for state in calculated2holesStates], 0.0)
+    shell_fl_dia = dict.fromkeys([tuple(state.qns()) for state in calculated2holesStates], "")
     
     for transition in calculatedSatelliteTransitions:
-        rate_level_radiative_sat[transition.qnsi()] += transition.rate
+        rate_level_radiative_sat[tuple(transition.qnsi())] += transition.rate
     
     if calculate_3holes:
         for transition in calculatedSatelliteAugerTransitions:
-            rate_level_auger_sat[transition.qnsi()] += transition.rate # type: ignore
+            rate_level_auger_sat[tuple(transition.qnsi())] += transition.rate # type: ignore
     
     for state_i in rate_level_sat:
         shell_sat = shell_array_2holes[state_i[0]].split("_")
@@ -3583,8 +3622,8 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     # Satellite auger widths
     
     if calculate_3holes:
-        fluor_3holes = dict.fromkeys([state.qns() for state in calculated3holesStates], 0.0)
-        shell_fl_dia_3holes = dict.fromkeys([state.qns() for state in calculated3holesStates], "")
+        fluor_3holes = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], 0.0)
+        shell_fl_dia_3holes = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], "")
     
         for state_i in rate_level_sat_auger: # type: ignore
             shell_sat_auger = shell_array_3holes[state_i[0]].split("_")
@@ -3600,11 +3639,11 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     # Shake-up widths
     
     if calculate_shakeup:
-        fluor_shakeup = dict.fromkeys([state.qns() for state in calculated2holesStates], 0.0)
-        shell_fl_dia_shakeup = dict.fromkeys([state.qns() for state in calculated2holesStates], "")
+        fluor_shakeup = dict.fromkeys([tuple(state.qns()) for state in calculated2holesStates], 0.0)
+        shell_fl_dia_shakeup = dict.fromkeys([tuple(state.qns()) for state in calculated2holesStates], "")
     
         for transition in calculatedShakeupTransitions:
-            rate_level_radiative_shakeup[transition.qnsi()] += transition.rate # type: ignore
+            rate_level_radiative_shakeup[tuple(transition.qnsi())] += transition.rate # type: ignore
         
         for state_i in rate_level_shakeup: # type: ignore
             shell_shakeup = shell_array_shakeup[state_i[0]].split("_")
@@ -3619,18 +3658,18 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     
     
     
-    def writeWidths(file_widths: str, rate_level: Dict[list, float], shell_labels: List[str], \
-                    configurations: List[str], rate_level_rad: Dict[list, float], \
-                    rate_level_aug: Dict[list, float], rate_level_ev: Dict[list, float]):
+    def writeWidths(file_widths: str, rate_level: Dict[tuple, float], shell_labels: List[str], \
+                    configurations: List[str], rate_level_rad: Dict[tuple, float], \
+                    rate_level_aug: Dict[tuple, float], rate_level_ev: Dict[tuple, float]):
         """Helper function to write the level widths to file.
 
         Args:
             file_widths (str): filename for the level widths file
-            rate_level (Dict[list, float]): dictionary with the total rate from the initial state
+            rate_level (Dict[tuple, float]): dictionary with the total rate from the initial state
             shell_labels (List[str]): labels for the electron configurations
-            rate_level_rad (Dict[list, float]): dictionary with the radiative rates from the initial state
-            rate_level_aug (Dict[list, float]): dictionary with the radiationless rates from the initial state
-            rate_level_ev (Dict[list, float]): dictionary with the total rate from initial state in eV
+            rate_level_rad (Dict[tuple, float]): dictionary with the radiative rates from the initial state
+            rate_level_aug (Dict[tuple, float]): dictionary with the radiationless rates from the initial state
+            rate_level_ev (Dict[tuple, float]): dictionary with the total rate from initial state in eV
         """
         with open(file_widths, "w") as level_widths:
             level_widths.write(" Transition register \t  Shell \t Configuration \t 2JJ \t eigenvalue \t radiative width [s-1] \t  auger width [s-1] \t total width [s-1] \t total width [eV] \n")
@@ -3651,19 +3690,19 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
                                 str(rate_level[state_i]) + " \t " + \
                                 str(rate_level_ev[state_i]) + "\n")
     
-    def writeWidthsNoAug(file_widths: str, rate_level: Dict[list, float], shell_labels: List[str], \
-                        configurations: List[str], rate_level_rad: Dict[list, float], \
-                        shell_fl: Dict[list, str], fluor: Dict[list, float], rate_level_ev: Dict[list, float]):
+    def writeWidthsNoAug(file_widths: str, rate_level: Dict[tuple, float], shell_labels: List[str], \
+                        configurations: List[str], rate_level_rad: Dict[tuple, float], \
+                        shell_fl: Dict[list, str], fluor: Dict[tuple, float], rate_level_ev: Dict[tuple, float]):
         """Helper function to write the level widths to file for transitions with no associated radiationless decays.
 
         Args:
             file_widths (str): filename for the level widths file
-            rate_level (Dict[list, float]): dictionary with the total rate from the initial state
+            rate_level (Dict[tuple, float]): dictionary with the total rate from the initial state
             shell_labels (List[str]): labels for the electron configurations
-            rate_level_rad (Dict[list, float]): dictionary with the radiative rates from the initial state
+            rate_level_rad (Dict[tuple, float]): dictionary with the radiative rates from the initial state
             shell_fl (Dict[list, str]): dictionary with the diagram shell label corresponding to this state
-            fluor (Dict[list, float]): dictionary with the fluorescence yield of the respective diagram shell
-            rate_level_ev (Dict[list, float]): dictionary with the total rate from initial state in eV
+            fluor (Dict[tuple, float]): dictionary with the fluorescence yield of the respective diagram shell
+            rate_level_ev (Dict[tuple, float]): dictionary with the total rate from initial state in eV
         """
         with open(file_widths, "w") as level_widths:
             level_widths.write(" Transition register \t index sorted \t  Shell \t Configuration \t 2JJ \t eigenvalue \t radiative width [s-1] \t  total width [s-1] \t total width [eV] \n")
@@ -3714,7 +3753,7 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     
     
     def writeSpectrum(file_rates_spectrum: str, calculatedStates: List[State], calculatedTransitions: List[Transition],
-                      multiplicity_JJ: List[int], rate_level: Dict[list, float], rate_level_ev: Dict[list, float]):
+                      multiplicity_JJ: List[int], rate_level: Dict[tuple, float], rate_level_ev: Dict[tuple, float]):
         """Helper function to write the spectrum to file
 
         Args:
@@ -3722,8 +3761,8 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
             calculatedStates (List[State]): list of the states associated with the spectrum's transitions
             calculatedTransitions (List[Transition]): list of the calculated transitions for the spectrum
             multiplicity_JJ (List[int]): list of the multiplicities of each LS electron configuration
-            rate_level (Dict[list, float]): dictionary with the total rates from the initial and final states
-            rate_level_ev (Dict[list, float]): dictionary with the total rates in eV from the initial and final states
+            rate_level (Dict[tuple, float]): dictionary with the total rates from the initial and final states
+            rate_level_ev (Dict[tuple, float]): dictionary with the total rates in eV from the initial and final states
         """
         with open(file_rates_spectrum, "w") as spectrum:
             inten_trans: List[float] = []
@@ -3737,9 +3776,9 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
                 for state_i in calculatedStates[(counter + 1):]:
                     transition = calculatedTransitions[combCnt]
                     
-                    inten_trans.append((float(state_i.jj + 1) / float(multiplicity_JJ[state_i.i])) * (transition.rate / rate_level[state_i.qns()]))
+                    inten_trans.append((float(state_i.jj + 1) / float(multiplicity_JJ[state_i.i])) * (transition.rate / rate_level[tuple(state_i.qns())]))
                     intensity_ev.append(inten_trans[-1] * transition.energy)
-                    transition_width.append(rate_level_ev[state_i.qns()] + rate_level_ev[state_f.qns()])
+                    transition_width.append(rate_level_ev[tuple(state_i.qns())] + rate_level_ev[tuple(state_f.qns())])
 
                     #print("\ntransition " + str(combCnt) + " : from " + configuration_1hole[i] + " 2J=" + str(jj_i) + " neig=" + str(eigv_i) + " -> " + configuration_1hole[f] + " 2J=" + str(jj_f) + " neig=" + str(eigv_f) + " = " + str(calculatedRadiativeTransitions[combCnt][2][1]) + " s-1  Energy = " + str(calculatedRadiativeTransitions[combCnt][2][0]) + " eV\n")
                     #print(" Width = initial state (" + str(rate_level_ev[state_i[0]]) + " eV) + final state (" + str(rate_level_ev[state_f[0]]) + " eV) = " + str(transition_width[-1]) + " eV\n")
@@ -3769,8 +3808,8 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     
     
     def writeSpectrumAuger(file_rates_spectrum: str, calculatedStates_i: List[State], calculatedState_f: List[State],
-                           calculatedTransitions: List[Transition], multiplicity_JJ: List[int], rate_level: Dict[list, float],
-                           rate_level_ev: Dict[list, float], rate_level_sat_ev: Dict[list, float]):
+                           calculatedTransitions: List[Transition], multiplicity_JJ: List[int], rate_level: Dict[tuple, float],
+                           rate_level_ev: Dict[tuple, float], rate_level_sat_ev: Dict[tuple, float]):
         """Helper function to write the spectrum to file for radiationless transitions
 
         Args:
@@ -3779,9 +3818,9 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
             calculatedState_f (List[State]): list of the final states associated with the spectrum's transitions
             calculatedTransitions (List[Transition]): list of the calculated transitions for the spectrum
             multiplicity_JJ (List[int]): list of the multiplicities of each LS electron configuration
-            rate_level (Dict[list, float]): dictionary with the total rates from the initial state
-            rate_level_ev (Dict[list, float]): dictionary with the total rates in eV from the initial state
-            rate_level_sat_ev (Dict[list, float]): dictionary with the total rates in eV from the final state
+            rate_level (Dict[tuple, float]): dictionary with the total rates from the initial state
+            rate_level_ev (Dict[tuple, float]): dictionary with the total rates in eV from the initial state
+            rate_level_sat_ev (Dict[tuple, float]): dictionary with the total rates in eV from the final state
         """
         with open(file_rates_spectrum, "w") as spectrum:
             inten_auger: List[float] = []
@@ -3800,9 +3839,9 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
                     
                     transition = calculatedTransitions[combCnt]
                     
-                    inten_auger.append((float(state_i.jj + 1) / float(multiplicity_JJ[state_i.i])) * (transition.rate / rate_level[state_i.qns()]) if multiplicity_JJ[state_i.i] > 0 and rate_level[state_i.qns()] > 0 else 0.0)
+                    inten_auger.append((float(state_i.jj + 1) / float(multiplicity_JJ[state_i.i])) * (transition.rate / rate_level[tuple(state_i.qns())]) if multiplicity_JJ[state_i.i] > 0 and rate_level[tuple(state_i.qns())] > 0 else 0.0)
                     intensity_auger_ev.append(inten_auger[-1] * transition.energy)
-                    transition_width_auger.append(rate_level_ev[state_i.qns()] + rate_level_sat_ev[state_f.qns()])
+                    transition_width_auger.append(rate_level_ev[tuple(state_i.qns())] + rate_level_sat_ev[tuple(state_f.qns())])
 
 
                     #print(str(combCnt) + " \t " + shell_array[i] + " \t " + configuration_1hole[i] + " \t " + str(jj_i) + " \t " + str(eigv_i) + " \t " + configuration_2holes[f] + " \t " + str(jj_f) + " \t " + str(eigv_f) + " \t " + str(calculatedAugerTransitions[combCnt][2][0]) + " \t " + str(inten_auger[-1]) + " \t " + str(intensity_auger_ev[-1]) + " \t " + str(transition_width_auger[-1]) + "\n")
@@ -4133,6 +4172,41 @@ def GetParameters_full(from_files: bool = False, read_1hole: bool = True, read_2
         print("Skipping shake-up states parameter reading...")
 
 
+def bruteForce(reports: ListProxy, currRunningStates: ListProxy, uncheckedStates: ListProxy, currDir: str, currFileName: str, num: int, orb_mods: Dict[str, str], minCycles: int = 5, maxCycles: int = 12, sepOrbitals: bool = False):
+    """Function to attempt a brute for exploration of the parameters to converge a state calculation
+
+    Args:
+        reports (ListProxy): shared list object with the reports
+        currRunningStates (ListProxy): shared list object with the indexes of the currently running states in seperate processes
+        uncheckedStates (ListProxy): shared list object with the indexes of the finished calculations that were not yet checked
+        currDir (str): directory name of the state to execute
+        currFileName (str): filename of the state to execute
+        num (int): index of the report to update
+        orb_mods (Dict[str, str]): dictionary with the current orbital labels and their input file lines
+        minCycles (int, optional): minimum number of cycles to use while trying different inputs. Defaults to 5.
+        maxCycles (int, optional): maximum number of cycles to use while trying different inputs. Defaults to 12.
+        sepOrbitals (bool, optional): flag to control if we want to seperate orbitals with 2 jj couplings, such as p and p* orbitals. Defaults to False.
+    """
+    config: str = ""
+    
+    with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+        for line in currInput.readlines():
+            if line[0] == "c":
+                config = line[4:-1].strip()
+                break
+    
+    for cycle in range(minCycles, maxCycles + 1):
+        for label in orb_mods:
+            modifyInputFile(currDir, currFileName, orb_mods, "rm", [orb_mods[label]])
+        
+        for label in orb_mods:
+            orb_label = orb_mods[label].split()[0]
+            if orb_label in config:
+                modifyInputFile(currDir, currFileName, orb_mods, "set", [str(cycle)])
+                modifyInputFile(currDir, currFileName, orb_mods, "add", [orb_mods[label]])
+                
+                executeCurrState(reports, currRunningStates, uncheckedStates, currDir, currFileName, num)
+
 
 def executeCurrState(reports: ListProxy, currRunningStates: ListProxy, uncheckedStates: ListProxy, currDir: str, currFileName: str, num: int):
     """Function to execute the current state in a seperate process
@@ -4168,8 +4242,11 @@ def executeCurrState(reports: ListProxy, currRunningStates: ListProxy, unchecked
     
     reports[num][1] = '\n'.join(reports[num][1].split("\n")[:(3 + len(reports[num][0]))]) + "\n" + userOutput + '\n'.join(reports[num][1].split("\n")[(3 + len(reports[num][0])):])
     
-    if converged and Diff >= 0.0 and Diff <= diffThreshold and float(str(overlap).strip().split()[-1]) < overlapsThreshold and accuracy < accThreshold:
+    if converged and Diff >= 0.0 and Diff <= diffThreshold and float(str(overlap).strip().split()[-1]) < overlapsThreshold and accuracy < accThreshold \
+        and "CONVERGED" not in reports[num][1]:
         reports[num][1] += "\t\t\t\t\t\t\t\tCONVERGED!\n"
+    elif "CONVERGED" in reports[num][1]:
+        reports[num][1].replace("\t\t\tCONVERGED!\n", "CONVERGENCE FOUND FOR PREVIOUS TEST!\n")
     
     # Remove this state from the running list
     currRunningStates.remove(str(num + 1))    
@@ -4232,13 +4309,14 @@ def saveReportsFile(file_final_results_reports: str, reports: ListProxy, by_hand
     return by_hand_reports
 
 
-def loadReportsFile(file_final_results_reports: str, by_hand: List[int], calculatedStates: List[State]):
-    """Function to load the reports from the binary file using the pickle module
-
+def loadReportsFile(file_final_results_reports: str, by_hand: List[int], calculatedStates: List[State], states_dir: str):
+    """Function to load the reports from the binary file using the pickle module.
+    
     Args:
         file_final_results_reports (str): filename from where read the data
         by_hand (List[int]): list of the indexes of the states that need to be recalculated by hand
         calculatedStates (List[State]): list of the calculated states which the by_hand list is referencing
+        states_dir (str): sub-directory where the state calculations are stored
     
     Returns:
         List[Report]: reports list loaded from file
@@ -4254,9 +4332,11 @@ def loadReportsFile(file_final_results_reports: str, by_hand: List[int], calcula
     for i, report in enumerate(reports):
         if "CONVERGED" in report.interfaceOutput:
             to_delete.append(i)
-    
+
+    deleted: int = 0
     for i in to_delete:
-        del reports[i]
+        del reports[i - deleted]
+        deleted += 1
     
     # Make sure the loaded reports object has the same order as the new states to be recalculated
     reports_order: List[int] = []
@@ -4270,8 +4350,35 @@ def loadReportsFile(file_final_results_reports: str, by_hand: List[int], calcula
                 if state.match(report.i, report.jj, report.eigv):
                     reports_order.append(report_cnt)
                     break
-                
+            
             report_cnt += 1
+            
+            if report_cnt == len(reports):
+                reports_order.append(report_cnt)
+                
+                currDir = rootDir + "/" + directory_name + "/" + states_dir + "/" + state.getDir()
+                currFileName = state.getFileName()
+                
+                with open(currDir + "/" + currFileName + ".f05", "r") as currInput:
+                    startingInput = ''.join(currInput.readlines())
+                
+                cycles, orbs = readInputPars(startingInput)
+                
+                startingOutput = str(1).ljust(6) + str(cycles).center(8) + "\t" + str(orbs).center(24) + "\t" + str(state.highest_percent).center(12) + str(state.overlap).center(16) + str(state.accuracy).center(16) + str(state.Diff).center(16) + str(state.welt).center(16) + "\n"
+                
+                interfaceOutput = "\nOutput parameters from state calculation.\n\n" + \
+                                    "Test".ljust(6) + "Cycles".center(8) + "\t" + "Orbitals".center(24) + "\t" + "Percent".center(12) + "Overlap".center(16) + "Accuracy".center(16) + "Energy Diff".center(16) + "Energy Welton".center(16) + "\n" + \
+                                    startingOutput + \
+                                    "\n Pending: N/A." + \
+                                    "\n To Check: N/A." + \
+                                    "\n Last: -1.\n\n"
+                
+                report = Report(state.i, state.jj, state.eigv, state.shell,
+                                [startingInput], interfaceOutput)
+                
+                reports.append(report)
+                
+                break
     
     return [reports[i] for i in reports_order]
 
@@ -4321,8 +4428,8 @@ def modifyInputFile(currDir: str, currFileName: str, orb_mods: Dict[str, str], m
                               "    n y y 100  z=" + atomic_number + "  4.D-6  1.  1.  1.\n",\
                               "    n y y 100  z=" + atomic_number + "  2.D-6  1.  1.  1.\n",\
                               "    n y y 200  z=" + atomic_number + "  1.D-6  1.  1.  1.\n",\
-                              "    n y y 200  z=" + atomic_number + "  5.D-7  1.  1.  1.\n",\
-                              "    n y y 250  z=" + atomic_number + "  1.D-7  1.  1.  1.\n"]
+                              "    n y y 200  z=" + atomic_number + "  7.D-7  1.  1.  1.\n",\
+                              "    n y y 250  z=" + atomic_number + "  4.D-7  1.  1.  1.\n"]
 
             if cycles < 0 or cycles > len(cycles_strings):
                 print("Error the number of cycles requested was negative or greater than the maximum cycles available (" + str(len(cycles_strings)) + ")")
@@ -4429,10 +4536,10 @@ def readInputPars(inputString: str) -> Tuple[str, str]:
             cnt = i + 1
             steps = 0
             while True:
-                if "lregul" in inputString[cnt]:
+                if "lregul" in inputLines[cnt]:
                     break
                 
-                if inputString[cnt][0] != "#":
+                if inputLines[cnt][0] != "#":
                     steps += 1
                 
                 cnt += 1
@@ -4442,8 +4549,13 @@ def readInputPars(inputString: str) -> Tuple[str, str]:
         elif "modsolv_orb=y" in line:
             cnt = i + 1
             while True:
-                if inputString[cnt][0] != "#":
-                    orbs.append(inputString[cnt].strip().split()[0])
+                if "end" in inputLines[cnt]:
+                    break
+                
+                if inputLines[cnt][0] != "#":
+                    orbs.append(inputLines[cnt].strip().split()[0])
+                
+                cnt += 1
     
     return cycles, (', '.join(orbs) if len(orbs) > 0 else "NA")
 
@@ -4463,6 +4575,11 @@ def showCommands(states_mod: str):
     print("\t<orb_label>,... - space seperated orbital labels to add or remove from the input file. This has to be present in the modsolv_orb file.")
     print("\t<set> - if the option is set then we will set the number of <cycles> for this calculation.")
     print("\t<cycles> - number of cycles to set for the calculation.")
+    print("bruteForce [<minCycles> [<maxCycles> [<sepOrbitals>]]] - perform a brute force of the current state. This uses the orbitals in the modsolv_orb file.")
+    print("\tNo parameters - the brute forcing will be done from 5 to 12 cycles and all orbitals of the type p, p* will be paired.")
+    print("\t<minCycles> - the minimum number of cycles for this brute forcing.")
+    print("\t<maxCycles> - the maximum number of cycles for this brute forcing.")
+    print("\t<sepOrbitals> - 0, 1 / True, False if we want to seperate the orbitals of type p, p* in the modsolv_orb.")
     print("load <testNumber> - load the input file for the <testNumber> test and rerun the calculation.")
     print("show <testNumber> - show the input file for the <testNumber> test. If no <testNumber> is provided the current output is shown.")
     print("flag - toggle the flag for this state as best convergence, even though it is not under thresholds.")
@@ -4543,6 +4660,7 @@ def cycle_list(by_hand: List[int], states_mod: str, states_dir: str, by_hand_rep
         calculatedStates (List[State]): list of the calculated states which the by_hand list is referencing
         file_final_results_reports (str): filename where to store the by_hand_report object after exit
     """
+    
     if len(by_hand) > 0:
         inp = input("\nCycle " + states_mod + " states by hand? (y or n) : ").strip()
         while inp != "y" and inp != "n":
@@ -4579,7 +4697,13 @@ def cycle_list(by_hand: List[int], states_mod: str, states_dir: str, by_hand_rep
                     print("Initializing parameters for the " + states_mod + " states by hand...")
                     
                     if os.path.isfile(file_final_results_reports):
-                        by_hand_report = loadReportsFile(file_final_results_reports, by_hand, calculatedStates)
+                        #inp = input("\nWould you like to include flagged states? (y or n): ").strip()
+                        #while inp != "y" and inp != "n":
+                        #    print("\n keyword must be y or n!!!")
+                        #    inp = input("\nWould you like to include flagged states? (y or n): ").strip()
+                        
+                        
+                        by_hand_report = loadReportsFile(file_final_results_reports, by_hand, calculatedStates, states_dir)#, inp == "y")
                         
                         for report in by_hand_report:
                             reportM = manager.list()
@@ -4613,7 +4737,7 @@ def cycle_list(by_hand: List[int], states_mod: str, states_dir: str, by_hand_rep
                             
                             report.append(inputs)
                             report.append("\nOutput parameters from state calculation.\n\n" + \
-                                                "Test".ljust(6) + "Cycles".center(8) + "\t" + "Obitals".center(24) + "\t" + "Percent".center(12) + "Overlap".center(16) + "Accuracy".center(16) + "Energy Diff".center(16) + "Energy Welton".center(16) + "\n" + \
+                                                "Test".ljust(6) + "Cycles".center(8) + "\t" + "Orbitals".center(24) + "\t" + "Percent".center(12) + "Overlap".center(16) + "Accuracy".center(16) + "Energy Diff".center(16) + "Energy Welton".center(16) + "\n" + \
                                                 startingOutput + \
                                                 "\n Pending: N/A." + \
                                                 "\n To Check: N/A." + \
@@ -4682,6 +4806,62 @@ def cycle_list(by_hand: List[int], states_mod: str, states_dir: str, by_hand_rep
                                 break
                             else:
                                 print("Error parsing arguments for input!!\n")
+                        elif "bruteForce" in inp:
+                            if len(inp.split()) == 2:
+                                try:
+                                    minCycles = int(inp.split()[1])
+
+                                    p = Process(target = bruteForce, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num, orb_mods, minCycles))
+                                    processes.append(p)
+                                    p.start()
+                                    if num > lastCalculatedState.value:
+                                        lastCalculatedState.value = num + 1
+                                    break
+                                except ValueError:
+                                    print("Error parsing arguments for input!!\n")
+                            elif len(inp.split()) == 3:
+                                try:
+                                    minCycles = int(inp.split()[1])
+                                    maxCycles = int(inp.split()[2])
+                                    
+                                    p = Process(target = bruteForce, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num, orb_mods, minCycles, maxCycles))
+                                    processes.append(p)
+                                    p.start()
+                                    if num > lastCalculatedState.value:
+                                        lastCalculatedState.value = num + 1
+                                    break
+                                except ValueError:
+                                    print("Error parsing arguments for input!!\n")
+                            elif len(inp.split()) == 4:
+                                minCycles = int(inp.split()[1])
+                                maxCycles = int(inp.split()[2])
+                                sep = inp.split()[3]
+                                
+                                sepOrbitals = None
+                                try:
+                                    sepOrbitals = int(sep) == 1
+                                except ValueError:
+                                    if sep.lower() == "true" or sep.lower() == "false":
+                                        sepOrbitals = sep.lower() == "true"
+                                    else:
+                                        print("Error parsing <sepOrbitals> from input!!\n")
+                                
+                                if sepOrbitals != None:
+                                    p = Process(target = bruteForce, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num, orb_mods, minCycles, maxCycles, sepOrbitals))
+                                    processes.append(p)
+                                    p.start()
+                                    if num > lastCalculatedState.value:
+                                        lastCalculatedState.value = num + 1
+                                    break
+                            elif inp == "bruteForce":
+                                p = Process(target = bruteForce, args = (reports, currRunningStates, uncheckedStates, currDir, currFileName, num, orb_mods))
+                                processes.append(p)
+                                p.start()
+                                if num > lastCalculatedState.value:
+                                    lastCalculatedState.value = num + 1
+                                break
+                            else:
+                                print("Error parsing arguments for input!!\n")
                         elif "show" in inp:
                             if len(inp.split()) == 2:
                                 args = inp.split()[1]
@@ -4740,7 +4920,7 @@ def cycle_list(by_hand: List[int], states_mod: str, states_dir: str, by_hand_rep
                             else:
                                 print("No testNumber was provided in the input!!\n")
                         else:
-                            print("keyword must be next, prev, cd, edit, show, flag, mods or exit!!!\n")
+                            print("keyword must be next, prev, cd, edit, bruteForce, show, flag, mods, save or exit!!!\n")
                         
                         
                         inp = input().strip()
@@ -5738,7 +5918,6 @@ def midPrompt(partial_check=False):
 
     
     return type_calc
-
 
 
 if __name__ == "__main__":
