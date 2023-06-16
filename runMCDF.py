@@ -27,8 +27,8 @@ parallel_max_length = 2097152
 # Max number of transitions that will be stored at the same time for each type
 # This is done to conserve disk space when calculating large sets
 # At ~10M transitions the results will occupy >300GB
-# In this case we calculate batches of 5M transitions and delete all results storing only the energy and rates for each transition
-max_transitions = 5e+6
+# In this case we calculate batches of 3M transitions and delete all results storing only the energy and rates for each transition
+max_transitions = 3e+6
 
 
 # ---------------------------- #
@@ -2320,11 +2320,18 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
                     log.write("Finished Transitions")
         
         # REMOVE THE .f09 WAVEFUNCTION FILES
-        if not batch:
-            for wfi_dst, wff_dst in zip(parallel_initial_dst_paths, parallel_final_dst_paths):
-                os.remove(wfi_dst)
-                os.remove(wff_dst)
+        for wfi_dst, wff_dst in zip(parallel_initial_dst_paths, parallel_final_dst_paths):
+            os.remove(wfi_dst)
+            os.remove(wff_dst)
         
+        for path in parallel_paths:
+            directory = '/'.join(path.split("/")[:-1]) + "/"
+            for filename in os.listdir(directory):
+                if ".f05" not in filename and ".f06" not in filename:
+                    if os.path.isfile(directory + filename):
+                        os.remove(directory + filename)
+                    else:
+                        shutil.rmtree(directory + filename)
     else:
         pl: int = 0
         for pl in range(int(len(parallel_paths) / parallel_max_paths)):
@@ -2397,10 +2404,6 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
                         os.remove(directory + filename)
                     else:
                         shutil.rmtree(directory + filename)
-    
-    if batch:
-        shutil.rmtree('/'.join(parallel_paths[0].split("/")[:-2]))
-        os.mkdir('/'.join(parallel_paths[0].split("/")[:-2]))
         
     
     
@@ -3174,6 +3177,15 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
 
     found_starting = False
 
+    
+    energies: List[float] = []
+    rates: List[float] = []
+    multipole_array: list = []
+    
+    total_rates = dict.fromkeys([tuple(state.qns()) for state in calculatedStates], 0.0)
+    
+    batch = 0
+    
     combCnt = 0
     for counter, state_f in enumerate(calculatedStates):
         for state_i in calculatedStates[(counter + 1):]:
@@ -3182,14 +3194,14 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
                 if not checkMonopolar(state_i.shell, state_i.jj):
                     continue
             
-            transition = Transition(state_i.i, state_i.jj, state_i.eigv,
+            new_transition = Transition(state_i.i, state_i.jj, state_i.eigv,
                                     state_f.i, state_f.jj, state_f.eigv,
                                     state_i.shell, state_i.configuration,
                                     state_f.shell, state_f.configuration,
                                     state_i.higher_config, state_i.highest_percent,
                                     state_f.higher_config, state_f.highest_percent)
             
-            calculatedTransitions.append(transition)
+            calculatedTransitions.append(new_transition)
             
             if starting_transition == [[0, 0, 0], [0, 0, 0]] or found_starting:
                 print("Preparing Transition: " + str(combCnt + 1), end="\r")
@@ -3217,25 +3229,49 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
                 parallel_final_dst_paths.append(currDir + "/" + wffFile + ".f09")
                 
                 parallel_transition_paths.append(currDir + "/" + exe_file)
+            else:
+                print("Finding Initial Transition: " + str(combCnt + 1), end="\r")
             
             combCnt += 1
             
-            if transition.match(starting_transition):
+            if new_transition.match(starting_transition):
                 found_starting = True
             
-            if combCnt >= max_transitions:
-                executeBatchTransitionCalculation(parallel_transition_paths, \
-                                            parallel_initial_src_paths, parallel_final_src_paths, \
-                                            parallel_initial_dst_paths, parallel_final_dst_paths, \
-                                            file_transitions_log, calculatedTransitions, "Calculated transitions:\n", True)
+            if combCnt >= (batch + 1) * max_transitions:
+                if len(parallel_transition_paths) > 0:
+                    executeBatchTransitionCalculation(parallel_transition_paths, \
+                                                parallel_initial_src_paths, parallel_final_src_paths, \
+                                                parallel_initial_dst_paths, parallel_final_dst_paths, \
+                                                file_transitions_log, calculatedTransitions, "Calculated transitions:\n", True)
+                    
+                    parallel_initial_src_paths.clear()
+                    parallel_initial_dst_paths.clear()
+                    parallel_final_src_paths.clear()
+                    parallel_final_dst_paths.clear()
+                    
+                    parallel_transition_paths.clear()
+                    
+                    
+                    for cnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
+                        print("Reading transition: " + str(cnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+                        
+                        currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(cnt)
+                        currFileName = str(cnt)
+                        
+                        energy, rate, multipoles = readTransition(currDir, currFileName) # type: ignore
+                        
+                        total_rates[tuple(transition.qnsi())] += float(rate)
+                        
+                        energies.append(energy)
+                        rates.append(rate)
+                        multipole_array.append(multipoles)
+                    
+                    
+                    shutil.rmtree(rootDir + "/" + directory_name + "/transitions/" + transitions_dir)
+                    os.mkdir(rootDir + "/" + directory_name + "/transitions/" + transitions_dir)
+
+                batch += 1
                 
-                parallel_initial_src_paths.clear()
-                parallel_initial_dst_paths.clear()
-                parallel_final_src_paths.clear()
-                parallel_final_dst_paths.clear()
-                
-                parallel_transition_paths.clear()
-    
     
     if len(parallel_transition_paths) > 0:
         executeBatchTransitionCalculation(parallel_transition_paths, \
@@ -3247,35 +3283,22 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
     del parallel_initial_dst_paths
     del parallel_final_src_paths
     del parallel_final_dst_paths
+    del parallel_transition_paths
     
-    energies: List[float] = []
-    rates: List[float] = []
-    multipole_array: list = []
     
-    total_rates = dict.fromkeys([tuple(state.qns()) for state in calculatedStates], 0.0)
-    
-    combCnt = 0
-    for counter, state_f in enumerate(calculatedStates):
-        for state_i in calculatedStates[(counter + 1):]:
-            if shakeup_configs:
-                # Filter for monopolar excitations
-                if not checkMonopolar(state_i.shell, state_i.jj):
-                    continue
-            
-            print("Reading transition: " + str(combCnt + 1) + "/" + str(len(parallel_transition_paths)), end="\r")
-            
-            currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
-            currFileName = str(combCnt)
-            
-            energy, rate, multipoles = readTransition(currDir, currFileName) # type: ignore
-            
-            total_rates[tuple(state_i.qns())] += float(rate)
-            
-            energies.append(energy)
-            rates.append(rate)
-            multipole_array.append(multipoles)
-            
-            combCnt += 1
+    for combCnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
+        print("Reading transition: " + str(combCnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+        
+        currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
+        currFileName = str(combCnt)
+        
+        energy, rate, multipoles = readTransition(currDir, currFileName) # type: ignore
+        
+        total_rates[tuple(transition.qnsi())] += float(rate)
+        
+        energies.append(energy)
+        rates.append(rate)
+        multipole_array.append(multipoles)
     
     
     # -------------- WRITE RESULTS TO THE FILES -------------- #
@@ -3317,6 +3340,14 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
 
     found_starting = False
 
+
+    energies: List[float] = []
+    rates: List[float] = []
+    
+    total_rates = dict.fromkeys([tuple(state.qns()) for state in calculatedStates_i], 0.0)
+
+    batch = 0
+
     combCnt = 0
     for state_i in calculatedStates_i:
         for state_f in calculatedStates_f:
@@ -3325,14 +3356,14 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
             if energy_diff <= 0:
                 break
             
-            transition = Transition(state_i.i, state_i.jj, state_i.eigv,
+            new_transition = Transition(state_i.i, state_i.jj, state_i.eigv,
                                     state_f.i, state_f.jj, state_f.eigv,
                                     state_i.shell, state_i.configuration,
                                     state_f.shell, state_f.configuration,
                                     state_i.higher_config, state_i.highest_percent,
                                     state_f.higher_config, state_f.highest_percent)
             
-            calculatedTransitions.append(transition)
+            calculatedTransitions.append(new_transition)
             
             if starting_transition == [[0, 0, 0], [0, 0, 0]] or found_starting:
                 print("Preparing Transition: " + str(combCnt + 1), end="\r")
@@ -3361,24 +3392,47 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
                 parallel_final_dst_paths.append(currDir + "/" + wffFile + ".f09")
                 
                 parallel_transition_paths.append(currDir + "/" + exe_file)
+            else:
+                print("Finding Initial Transition: " + str(combCnt + 1), end="\r")
             
             combCnt += 1
             
-            if transition.match(starting_transition):
+            if new_transition.match(starting_transition):
                 found_starting = True
             
-            if combCnt >= max_transitions:
-                executeBatchTransitionCalculation(parallel_transition_paths, \
-                                            parallel_initial_src_paths, parallel_final_src_paths, \
-                                            parallel_initial_dst_paths, parallel_final_dst_paths, \
-                                            file_transitions_log, calculatedTransitions, "Calculated transitions:\n", True)
-                
-                parallel_initial_src_paths.clear()
-                parallel_initial_dst_paths.clear()
-                parallel_final_src_paths.clear()
-                parallel_final_dst_paths.clear()
-                
-                parallel_transition_paths.clear()
+            if combCnt >= (batch + 1) * max_transitions:
+                if len(parallel_transition_paths) > 0:
+                    executeBatchTransitionCalculation(parallel_transition_paths, \
+                                                parallel_initial_src_paths, parallel_final_src_paths, \
+                                                parallel_initial_dst_paths, parallel_final_dst_paths, \
+                                                file_transitions_log, calculatedTransitions, "Calculated transitions:\n", True)
+                    
+                    parallel_initial_src_paths.clear()
+                    parallel_initial_dst_paths.clear()
+                    parallel_final_src_paths.clear()
+                    parallel_final_dst_paths.clear()
+                    
+                    parallel_transition_paths.clear()
+                    
+                    
+                    for cnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
+                        print("Reading transition: " + str(cnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+                        
+                        currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(cnt)
+                        currFileName = str(cnt)
+                        
+                        energy, rate = readTransition(currDir, currFileName, False) # type: ignore
+                        
+                        total_rates[tuple(transition.qnsi())] += float(rate)
+                        
+                        energies.append(energy)
+                        rates.append(rate)
+                        
+                    
+                    shutil.rmtree(rootDir + "/" + directory_name + "/transitions/" + transitions_dir)
+                    os.mkdir(rootDir + "/" + directory_name + "/transitions/" + transitions_dir)
+
+                batch += 1
     
     
     if len(parallel_transition_paths) > 0:
@@ -3391,34 +3445,21 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
     del parallel_initial_dst_paths
     del parallel_final_src_paths
     del parallel_final_dst_paths
+    del parallel_transition_paths
     
     
-    energies: List[float] = []
-    rates: List[float] = []
-    
-    total_rates = dict.fromkeys([tuple(state.qns()) for state in calculatedStates_i], 0.0)
-    
-    combCnt = 0
-    for state_i in calculatedStates_i:
-        for state_f in calculatedStates_f:
-            energy_diff = state_i.welt - state_f.welt
-            
-            if energy_diff <= 0:
-                break
-            
-            print("Reading transition: " + str(combCnt + 1) + "/" + str(len(parallel_transition_paths)), end="\r")
-            
-            currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
-            currFileName = str(combCnt)
-            
-            energy, rate = readTransition(currDir, currFileName, False) # type: ignore
-            
-            total_rates[tuple(state_i.qns())] += float(rate)
-            
-            energies.append(energy)
-            rates.append(rate)
-            
-            combCnt += 1
+    for combCnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
+        print("Reading transition: " + str(combCnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+        
+        currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
+        currFileName = str(combCnt)
+        
+        energy, rate = readTransition(currDir, currFileName, False) # type: ignore
+        
+        total_rates[tuple(transition.qnsi())] += float(rate)
+        
+        energies.append(energy)
+        rates.append(rate)
     
     
     # -------------- WRITE RESULTS TO THE FILES -------------- #
