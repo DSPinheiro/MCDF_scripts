@@ -253,7 +253,7 @@ class State:
         print("Warning: bad arguments at state match: " + self.shell + ", " + str(self.jj) + ", " + str(self.eigv))
         return False
 
-    def qns(self) -> list:
+    def qns(self) -> List[int]:
         """Helper function for a list of the state's quantum numbers
 
         Returns:
@@ -2506,41 +2506,30 @@ def writeResultsState(file_cycle_log: str, file_final_per_type: str, state_mod: 
 
 
 def writeResultsTransitionAuger(rates_file: str, transition_mod: str,
-                           calculatedStates_i: List[State], calculatedStates_f: List[State], calculatedTransitions: List[Transition], \
+                           calculatedTransitions: List[Transition], batch: int, \
                            energies: List[float], rates: List[float], total_rates: Dict[tuple, float]):
     """Helper function to update the transition list and write it to the rates file
 
     Args:
         rates_file (str): filename for the rates file
         transition_mod (str): transition type modifier to format the rates file
-        calculatedStates_i (List[State]): list of the calculated initial states associated with the transitions
-        calculatedStates_f (List[State]): list of the calculated final states associated with the transitions
         calculatedTransitions (List[Transition]): list of the transitions to update and print
+        batch (int): batch number from where to start writing the transitions
         rates (List[float]): list of the rates for the transitions
         total_rates (Dict[tuple, float]): dictionary with the total rates form the initial LS shell for the transitions
     """
-    with open(rates_file, "w") as rates_f:
-        rates_f.write("Calculated " + transition_mod + " Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\ttotal rate from IS\tbranching ratio\n")
-        combCnt = 0
-        for state_i in calculatedStates_i:
-            for state_f in calculatedStates_f:
-                energy_diff = state_i.welt - state_f.welt
+    with open(rates_file, ("w" if batch == 0 else "a")) as rates_f:
+        if batch == 0:
+            rates_f.write("Calculated " + transition_mod + " Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\ttotal rate from IS\tbranching ratio\n")
+                
+        for combCnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
+            transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[tuple(transition.qnsi())])
             
-                if energy_diff <= 0:
-                    break
-                
-                transition = calculatedTransitions[combCnt]
-                transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[tuple(state_i.qns())])
-                
-                
-                rates_f.write(str(combCnt) + "\t" + str(transition) + "\n")
-                
-                combCnt += 1
-
+            rates_f.write(str(combCnt) + "\t" + str(transition) + "\n")
 
 
 def writeResultsTransition(rates_file: str, transition_mod: str,  
-                           calculatedStates: List[State], calculatedTransitions: List[Transition], \
+                           calculatedTransitions: List[Transition], batch: int, \
                            energies: List[float], rates: List[float], total_rates: Dict[tuple, float], multipole_array: list, \
                            shakeup_configs: bool = False):
     """Helper function to update the transition list and write it to the rates file
@@ -2548,30 +2537,26 @@ def writeResultsTransition(rates_file: str, transition_mod: str,
     Args:
         rates_file (str): filename for the rates file
         transition_mod (str): transition type modifier to format the rates file
-        calculatedStates (List[State]): list of the calculated states associated with these transitions
         calculatedTransitions (List[Transition]): list of the transitions to update and print
+        batch (int): batch number from where to start writing the transitions
         rates (List[float]): list of the rates for the transitions
         total_rates (Dict[tuple, float]): dictionary of the total rates from the initial LS shell for the transitions
         multipole_array (list): list of the multipoles and rates for each transition
         shakeup_configs (bool, optional): flag for shakeup configurations, which is used to filter monopolar excitations. Defaults to False.
     """
-    with open(rates_file, "w") as rates_f:
-        rates_f.write("Calculated " + transition_mod + " Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\tnumber multipoles\ttotal rate from IS\tbranching ratio\n")
-        combCnt = 0
-        for counter, state_f in enumerate(calculatedStates):
-            for state_i in calculatedStates[(counter + 1):]:
-                if shakeup_configs:
-                    # Filter for monopolar excitations
-                    if not checkMonopolar(state_i.shell, state_i.jj):
-                        continue
-                
-                transition = calculatedTransitions[combCnt]
-                transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[tuple(state_i.qns())], multipole_array[combCnt])
-                
-                rates_f.write(str(combCnt) + "\t" + str(transition) + "\n")
-                
-                combCnt += 1
-
+    with open(rates_file, ("w" if batch == 0 else "a")) as rates_f:
+        if batch == 0:
+            rates_f.write("Calculated " + transition_mod + " Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\tnumber multipoles\ttotal rate from IS\tbranching ratio\n")
+        
+        for combCnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
+            if shakeup_configs:
+                # Filter for monopolar excitations
+                if not checkMonopolar(transition.shell1, transition.jj1):
+                    continue
+            
+            transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[tuple(transition.qnsi())], multipole_array[combCnt])
+            
+            rates_f.write(str(combCnt) + "\t" + str(transition) + "\n")
 
 
 def calculateStates(shell_labels: List[str], sub_dir: str, electron_configurations: List[str], electron_number: int, calculatedStates: List[State], \
@@ -3269,6 +3254,13 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
                     
                     shutil.rmtree(rootDir + "/" + directory_name + "/transitions/" + transitions_dir)
                     os.mkdir(rootDir + "/" + directory_name + "/transitions/" + transitions_dir)
+                    
+                    
+                    # -------------- WRITE RESULTS TO THE FILES -------------- #
+                    
+                    writeResultsTransition(rates_file, transition_mod,
+                                        calculatedTransitions, batch, \
+                                        energies, rates, total_rates, multipole_array, shakeup_configs)
 
                 batch += 1
                 
@@ -3304,7 +3296,7 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
     writeResultsTransition(rates_file, transition_mod,
-                           calculatedStates, calculatedTransitions, \
+                           calculatedTransitions, batch, \
                            energies, rates, total_rates, multipole_array, shakeup_configs)
     
     
@@ -3432,6 +3424,12 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
                     shutil.rmtree(rootDir + "/" + directory_name + "/transitions/" + transitions_dir)
                     os.mkdir(rootDir + "/" + directory_name + "/transitions/" + transitions_dir)
 
+                    # -------------- WRITE RESULTS TO THE FILES -------------- #
+        
+                    writeResultsTransitionAuger(rates_file, transition_mod,
+                                        calculatedTransitions, batch, \
+                                        energies, rates, total_rates)
+                
                 batch += 1
     
     
@@ -3465,7 +3463,7 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
     writeResultsTransitionAuger(rates_file, transition_mod,
-                           calculatedStates_i, calculatedStates_f, calculatedTransitions, \
+                           calculatedTransitions, batch, \
                            energies, rates, total_rates)
 
 
@@ -3699,9 +3697,9 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     
     
     
-    def writeWidths(file_widths: str, rate_level: Dict[tuple, float], shell_labels: List[str], \
-                    configurations: List[str], rate_level_rad: Dict[tuple, float], \
-                    rate_level_aug: Dict[tuple, float], rate_level_ev: Dict[tuple, float]):
+    def writeWidths(file_widths: str, rate_level: Dict[Tuple[int, ...], float], shell_labels: List[str], \
+                    configurations: List[str], rate_level_rad: Dict[Tuple[int, ...], float], \
+                    rate_level_aug: Dict[Tuple[int, ...], float], rate_level_ev: Dict[Tuple[int, ...], float]):
         """Helper function to write the level widths to file.
 
         Args:
@@ -3731,9 +3729,9 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
                                 str(rate_level[state_i]) + " \t " + \
                                 str(rate_level_ev[state_i]) + "\n")
     
-    def writeWidthsNoAug(file_widths: str, rate_level: Dict[tuple, float], shell_labels: List[str], \
-                        configurations: List[str], rate_level_rad: Dict[tuple, float], \
-                        shell_fl: Dict[list, str], fluor: Dict[tuple, float], rate_level_ev: Dict[tuple, float]):
+    def writeWidthsNoAug(file_widths: str, rate_level: Dict[Tuple[int, ...], float], shell_labels: List[str], \
+                        configurations: List[str], rate_level_rad: Dict[Tuple[int, ...], float], \
+                        shell_fl: Dict[Tuple[int, ...], str], fluor: Dict[Tuple[int, ...], float], rate_level_ev: Dict[Tuple[int, ...], float]):
         """Helper function to write the level widths to file for transitions with no associated radiationless decays.
 
         Args:
