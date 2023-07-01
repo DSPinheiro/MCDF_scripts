@@ -2522,7 +2522,7 @@ def writeResultsTransitionAuger(rates_file: str, transition_mod: str,
         if batch == 0:
             rates_f.write("Calculated " + transition_mod + " Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\ttotal rate from IS\tbranching ratio\n")
                 
-        for combCnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
+        for combCnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
             transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[tuple(transition.qnsi())])
             
             rates_f.write(str(combCnt) + "\t" + str(transition) + "\n")
@@ -2548,7 +2548,7 @@ def writeResultsTransition(rates_file: str, transition_mod: str,
         if batch == 0:
             rates_f.write("Calculated " + transition_mod + " Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\tnumber multipoles\ttotal rate from IS\tbranching ratio\n")
         
-        for combCnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
+        for combCnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
             if shakeup_configs:
                 # Filter for monopolar excitations
                 if not checkMonopolar(transition.shell1, transition.jj1):
@@ -3237,8 +3237,8 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
                     parallel_transition_paths.clear()
                     
                     
-                    for cnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
-                        print("Reading transition: " + str(cnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+                    for cnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
+                        print("Reading " + transitions_dir + " transition: " + str(cnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
                         
                         currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(cnt)
                         currFileName = str(cnt)
@@ -3278,8 +3278,8 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
     del parallel_transition_paths
     
     
-    for combCnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
-        print("Reading transition: " + str(combCnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+    for combCnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
+        print("Reading " + transitions_dir + " transition: " + str(combCnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
         
         currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
         currFileName = str(combCnt)
@@ -3407,8 +3407,8 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
                     parallel_transition_paths.clear()
                     
                     
-                    for cnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
-                        print("Reading transition: " + str(cnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+                    for cnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
+                        print("Reading " + transitions_dir + " transition: " + str(cnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
                         
                         currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(cnt)
                         currFileName = str(cnt)
@@ -3446,8 +3446,8 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
     del parallel_transition_paths
     
     
-    for combCnt, transition in enumerate(calculatedTransitions, int(batch * max_transitions)):
-        print("Reading transition: " + str(combCnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+    for combCnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
+        print("Reading " + transitions_dir + " transition: " + str(combCnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
         
         currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
         currFileName = str(combCnt)
