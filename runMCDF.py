@@ -1275,8 +1275,8 @@ def checkPartial():
                     rad_calculated.readline()
                     for line in rad_calculated:
                         if line != "\n" and "Calculated" not in line:
-                            state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
-                            state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                            state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
                             
                             last_rad_calculated = [state_i, state_f]
                         elif "Finished" in line:
@@ -1292,8 +1292,8 @@ def checkPartial():
                     aug_calculated.readline()
                     for line in aug_calculated:
                         if line != "\n" and "Calculated" not in line:
-                            state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
-                            state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                            state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
                             
                             last_aug_calculated = [state_i, state_f]
                         elif "Finished" in line:
@@ -1309,8 +1309,8 @@ def checkPartial():
                     sat_calculated.readline()
                     for line in sat_calculated:
                         if line != "\n" and "Calculated" not in line:
-                            state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
-                            state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                            state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
                             
                             last_sat_calculated = [state_i, state_f]
                         elif "Finished" in line:
@@ -1326,8 +1326,8 @@ def checkPartial():
                     shakeup_calculated.readline()
                     for line in shakeup_calculated:
                         if line != "\n" and "Calculated" not in line:
-                            state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
-                            state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                            state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
                             
                             last_shakeup_calculated = [state_i, state_f]
                         elif "Finished" in line:
@@ -1343,8 +1343,8 @@ def checkPartial():
                     sat_auger_calculated.readline()
                     for line in sat_auger_calculated:
                         if line != "\n" and "Calculated" not in line:
-                            state_i = tuple(int(qn) for qn in line.strip().split(" => ")[0].split(", "))
-                            state_f = tuple(int(qn) for qn in line.strip().split(" => ")[1].split(", "))
+                            state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
                             
                             last_sat_auger_calculated = [state_i, state_f]
                         elif "Finished" in line:
@@ -2315,7 +2315,7 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
         if log_file != '' and transition_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
                 log.write(log_line_header)
-                log.write(', '.join([str(qn) for qn in transition_list[-1].qnsi()]) + " => " + ', '.join([str(qn) for qn in transition_list[-1].qnsf()]) + "\n")
+                log.write(', '.join([str(qn) for qn in transition_list[-1].qnsi()]) + " => " + ', '.join([str(qn) for qn in transition_list[-1].qnsf()]) + " //" + str(len(parallel_paths)) + "\n")
                 if not batch:
                     log.write("Finished Transitions")
         
@@ -2347,13 +2347,16 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
             subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]) + ' >/dev/null'], shell=True)
             
             
-            # LOG THE CALCULATED STATES IN THIS BATCH
-            if log_file != '' and transition_list != [] and log_line_header != '':
-                with open(log_file, "a") as log:
-                    if pl == 0:
-                        log.write(log_line_header)
-                    
-                    log.write(', '.join([str(qn) for qn in transition_list[int((pl + 1) * parallel_max_paths) - 1].qnsi()]) + " => " + ', '.join([str(qn) for qn in transition_list[int((pl + 1) * parallel_max_paths) - 1].qnsf()]) + "\n")
+            # ONLY LOG FULL BATCHES AS THIS IS WHAT WILL BE WRITTEN TO FILE
+            # IF WE STOP IN THE MIDDLE THEN WE WILL HAVE TO RESTART FROM THE BATCH, NOT WHERE IT STOPPED
+            if not batch:
+                # LOG THE CALCULATED STATES IN THIS BATCH
+                if log_file != '' and transition_list != [] and log_line_header != '':
+                    with open(log_file, "a") as log:
+                        if pl == 0:
+                            log.write(log_line_header)
+                        
+                        log.write(', '.join([str(qn) for qn in transition_list[int((pl + 1) * parallel_max_paths) - 1].qnsi()]) + " => " + ', '.join([str(qn) for qn in transition_list[int((pl + 1) * parallel_max_paths) - 1].qnsf()]) + " //" + str(int((pl + 1) * parallel_max_paths) - 1) + "\n")
             
             
             # REMOVE THE .f09 WAVEFUNCTION FILES IN THIS BATCH
@@ -2386,7 +2389,7 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
         # COPY .f09 WAVEFUNCTION FILES FOR THE LAST BATCH
         if log_file != '' and transition_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
-                log.write(', '.join([str(qn) for qn in transition_list[-1].qnsi()]) + " => " + ', '.join([str(qn) for qn in transition_list[-1].qnsf()]) + "\n")
+                log.write(', '.join([str(qn) for qn in transition_list[-1].qnsi()]) + " => " + ', '.join([str(qn) for qn in transition_list[-1].qnsf()]) + " //" + str(len(transition_list) - 1) + "\n")
                 if not batch:
                     log.write("Finished Transitions")
         
@@ -3121,7 +3124,17 @@ def readTransition(currDir: str, currFileName: str, radiative: bool = True) -> \
                         
                         cnt += 1
             
-            return float(energy), float(rate), multipoles
+            try:
+                return float(energy), float(rate), multipoles
+            except ValueError:
+                if '-' in rate:
+                    idx = rate.index("-")
+                elif '+' in rate:
+                    idx = rate.index("+")
+                else:
+                    return float(energy), 0.0, multipoles
+
+                return float(energy), float(rate[:(idx + 1)] + 'E' + rate[(idx + 1):]), multipoles
         else:
             for i, line in enumerate(outputContent):
                 if "For Auger transition of energy" in line and "Total rate is" in line:
@@ -3129,7 +3142,17 @@ def readTransition(currDir: str, currFileName: str, radiative: bool = True) -> \
                     rate = outputContent[i + 1].strip().split()[0]
                 
             
-            return float(energy), float(rate)
+            try:
+                return float(energy), float(rate)
+            except ValueError:
+                if '-' in rate:
+                    idx = rate.index("-")
+                elif '+' in rate:
+                    idx = rate.index("+")
+                else:
+                    return float(energy), 0.0
+
+                return float(energy), float(rate[:(idx + 1)] + 'E' + rate[(idx + 1):])
     
 
 
