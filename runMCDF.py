@@ -2509,7 +2509,7 @@ def writeResultsState(file_cycle_log: str, file_final_per_type: str, state_mod: 
 
 
 def writeResultsTransitionAuger(rates_file: str, transition_mod: str,
-                           calculatedTransitions: List[Transition], batch: int, \
+                           calculatedTransitions: List[Transition], startingCnt: int, batch: int, \
                            energies: List[float], rates: List[float], total_rates: Dict[tuple, float]):
     """Helper function to update the transition list and write it to the rates file
 
@@ -2526,13 +2526,13 @@ def writeResultsTransitionAuger(rates_file: str, transition_mod: str,
             rates_f.write("Calculated " + transition_mod + " Transitions\nTransition register\tShell IS\tIS Configuration\tIS 2JJ\tIS eigenvalue\tIS higher configuration\tIS percentage\tShell FS\tFS Configuration\tFS 2JJ\tFS eigenvalue\tFS higher configuration\tFS percentage\ttransition energy [eV]\trate [s-1]\ttotal rate from IS\tbranching ratio\n")
                 
         for combCnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
-            transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[tuple(transition.qnsi())])
+            transition.set_parameters(energies[combCnt - startingCnt], rates[combCnt - startingCnt], total_rates[tuple(transition.qnsi())])
             
             rates_f.write(str(combCnt) + "\t" + str(transition) + "\n")
 
 
 def writeResultsTransition(rates_file: str, transition_mod: str,  
-                           calculatedTransitions: List[Transition], batch: int, \
+                           calculatedTransitions: List[Transition], startingCnt: int, batch: int, \
                            energies: List[float], rates: List[float], total_rates: Dict[tuple, float], multipole_array: list, \
                            shakeup_configs: bool = False):
     """Helper function to update the transition list and write it to the rates file
@@ -2557,7 +2557,7 @@ def writeResultsTransition(rates_file: str, transition_mod: str,
                 if not checkMonopolar(transition.shell1, transition.jj1):
                     continue
             
-            transition.set_parameters(energies[combCnt], rates[combCnt], total_rates[tuple(transition.qnsi())], multipole_array[combCnt])
+            transition.set_parameters(energies[combCnt - startingCnt], rates[combCnt - startingCnt], total_rates[tuple(transition.qnsi())], multipole_array[combCnt - startingCnt])
             
             rates_f.write(str(combCnt) + "\t" + str(transition) + "\n")
 
@@ -3124,35 +3124,61 @@ def readTransition(currDir: str, currFileName: str, radiative: bool = True) -> \
                         
                         cnt += 1
             
+            finalEnergy = 0.0
+            finalRate = 0.0
+            
             try:
-                return float(energy), float(rate), multipoles
+                finalEnergy = float(energy)
+            except ValueError:
+                if '-' in energy:
+                    idx = rate.index("-")
+                    finalEnergy = float(energy[:idx] + 'E' + energy[idx:])
+                elif '+' in energy:
+                    idx = rate.index("+")
+                    finalEnergy = float(energy[:idx] + 'E' + energy[idx:])
+            
+            try:
+                finalRate = float(rate)
             except ValueError:
                 if '-' in rate:
                     idx = rate.index("-")
+                    finalRate = float(rate[:idx] + 'E' + rate[idx:])
                 elif '+' in rate:
                     idx = rate.index("+")
-                else:
-                    return float(energy), 0.0, multipoles
-
-                return float(energy), float(rate[:(idx + 1)] + 'E' + rate[(idx + 1):]), multipoles
+                    finalRate = float(rate[:idx] + 'E' + rate[idx:])
+            
+            return finalEnergy, finalRate, multipoles
         else:
             for i, line in enumerate(outputContent):
                 if "For Auger transition of energy" in line and "Total rate is" in line:
                     energy = line.replace("For Auger transition of energy", "").strip().split()[0]
                     rate = outputContent[i + 1].strip().split()[0]
-                
+            
+            
+            finalEnergy = 0.0
+            finalRate = 0.0
             
             try:
-                return float(energy), float(rate)
+                finalEnergy = float(energy)
+            except ValueError:
+                if '-' in energy:
+                    idx = rate.index("-")
+                    finalEnergy = float(energy[:idx] + 'E' + energy[idx:])
+                elif '+' in energy:
+                    idx = rate.index("+")
+                    finalEnergy = float(energy[:idx] + 'E' + energy[idx:])
+            
+            try:
+                finalRate = float(rate)
             except ValueError:
                 if '-' in rate:
                     idx = rate.index("-")
+                    finalRate = float(rate[:idx] + 'E' + rate[idx:])
                 elif '+' in rate:
                     idx = rate.index("+")
-                else:
-                    return float(energy), 0.0
-
-                return float(energy), float(rate[:(idx + 1)] + 'E' + rate[(idx + 1):])
+                    finalRate = float(rate[:idx] + 'E' + rate[idx:])
+            
+            return finalEnergy, finalRate
     
 
 
@@ -3193,6 +3219,8 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
     total_rates = dict.fromkeys([tuple(state.qns()) for state in calculatedStates], 0.0)
     
     batch = 0
+    
+    startingCnt = 0
     
     combCnt = 0
     for counter, state_f in enumerate(calculatedStates):
@@ -3244,6 +3272,7 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
             
             if new_transition.match(starting_transition):
                 found_starting = True
+                startingCnt = combCnt
             
             if combCnt >= (batch + 1) * max_transitions:
                 if len(parallel_transition_paths) > 0:
@@ -3282,7 +3311,7 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
                     # -------------- WRITE RESULTS TO THE FILES -------------- #
                     
                     writeResultsTransition(rates_file, transition_mod,
-                                        calculatedTransitions, batch, \
+                                        calculatedTransitions, startingCnt, batch, \
                                         energies, rates, total_rates, multipole_array, shakeup_configs)
 
                 batch += 1
@@ -3319,7 +3348,7 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
     writeResultsTransition(rates_file, transition_mod,
-                           calculatedTransitions, batch, \
+                           calculatedTransitions, startingCnt, batch, \
                            energies, rates, total_rates, multipole_array, shakeup_configs)
     
     
@@ -3362,6 +3391,8 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
     total_rates = dict.fromkeys([tuple(state.qns()) for state in calculatedStates_i], 0.0)
 
     batch = 0
+
+    startingCnt = 0
 
     combCnt = 0
     for state_i in calculatedStates_i:
@@ -3414,6 +3445,7 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
             
             if new_transition.match(starting_transition):
                 found_starting = True
+                startingCnt = combCnt
             
             if combCnt >= (batch + 1) * max_transitions:
                 if len(parallel_transition_paths) > 0:
@@ -3450,7 +3482,7 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
                     # -------------- WRITE RESULTS TO THE FILES -------------- #
         
                     writeResultsTransitionAuger(rates_file, transition_mod,
-                                        calculatedTransitions, batch, \
+                                        calculatedTransitions, startingCnt, batch, \
                                         energies, rates, total_rates)
                 
                 batch += 1
@@ -3486,7 +3518,7 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
     # -------------- WRITE RESULTS TO THE FILES -------------- #
     
     writeResultsTransitionAuger(rates_file, transition_mod,
-                           calculatedTransitions, batch, \
+                           calculatedTransitions, startingCnt, batch, \
                            energies, rates, total_rates)
 
 
@@ -5732,26 +5764,24 @@ def InitialPrompt():
     print("         #########################################################################################################################")
     print("         ####                                                                                                                 ####")
     print("         ####            !!! Python script to paralellize MCDFGME calculations for a specific Atomic System !!!               ####")
-    print("         ####                 !!! This was written based on a previous Bash script by Jorge Machado !!!                       ####")
     print("         ####                                                                                                                 ####")
-    print("         ####        Original Author: Jorge Machado                                                                           ####")
-    print("         ####        email: jfd.machado@fct.unl.pt                                                                            ####")
-    print("         ####        Last update: 17/05/2021                                                                                  ####")
-    print("         ####                                                                                                                 ####")
-    print("         ####        Current Author: Daniel Pinheiro                                                                          ####")
+    print("         ####        Author: Daniel Pinheiro                                                                                  ####")
     print("         ####        email: ds.pinheiro@campus.fct.unl.pt                                                                     ####")
-    print("         ####        Last update: 16/03/2023                                                                                  ####")
+    print("         ####        Last update: 08/08/2023                                                                                  ####")
     print("         ####                                                                                                                 ####")
     print("         ####    Calculates:                                                                                                  ####")
     print("         ####                                                                                                                 ####")
-    print("         ####    1- all one and two vacancy levels for the selected Z system                                                  ####")
-    print("         ####    2- after reaching convergence of all levels, calculates all energetically allowed transition rates           ####")
+    print("         ####    1- All one, two and three vacancy levels for the selected Z system                                           ####")
+    print("         ####    2- After reaching convergence of all levels, calculates all energetically allowed transition rates           ####")
     print("         ####       (radiative, auger and satellites)                                                                         ####")
     print("         ####    3- Calculates all the sums to get fluorescence yields, level widths, etc...                                  ####")
-    print("         ####    4- Calculates the overlaps between the wave functions of two sates to get shake probabilities                ####")
+    print("         ####    4- Calculates the overlaps between the wave functions of two sates to get shake probabilities (WIP)          ####")
     print("         ####    5- It produces several output files with diverse atomic parameters and a file with the theoretical spectrum  ####")
     print("         ####       (transition energy, natural width and intensity to generate a theoretical spectra)                        ####")
     print("         ####                                                                                                                 ####")
+    print("         ####    Provides:                                                                                                    ####")
+    print("         ####                                                                                                                 ####")
+    print("         ####    1- Command Line interface to help in the manual convergence of states                                        ####")
     print("         ####                                                                                                                 ####")
     print("         ####    Documentation, as well as different versions for different programing languages will be available at:        ####")
     print("         ####    (github)                                                                                                     ####")
