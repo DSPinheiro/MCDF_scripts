@@ -116,6 +116,7 @@ file_calculated_radiative = ''
 file_calculated_auger = ''
 file_calculated_shakeoff = ''
 file_calculated_shakeup = ''
+file_calculated_3radiative = ''
 file_calculated_sat_auger = ''
 
 # File with the general parameters for the calculation
@@ -134,6 +135,7 @@ file_rates = ''
 file_rates_auger = ''
 file_rates_shakeoff = ''
 file_rates_shakeup = ''
+file_rates_3radiative = ''
 file_rates_sat_auger = ''
 
 # Files with the calculated diagram, auger, shake-off and shake-up spectra
@@ -141,18 +143,20 @@ file_rates_spectrum_diagram = ''
 file_rates_spectrum_auger = ''
 file_rates_spectrum_shakeoff = ''
 file_rates_spectrum_shakeup = ''
+file_rates_spectrum_3radiative = ''
 file_rates_spectrum_sat_auger = ''
 
 # Files with rate sums, used for fluorescence yield determinations
 file_rates_sums = ''
 file_rates_sums_shakeoff = ''
 file_rates_sums_shakeup = ''
+file_rates_sums_3radiative = ''
 
 # Files with level sums, used for spectra calculation
 file_level_widths = ''
 file_level_widths_shakeoff = ''
 file_level_widths_shakeup = ''
-file_level_widths_sat_auger = ''
+file_level_widths_3radiative = ''
 
 
 # Files where the reports for the state convergence interface are stored
@@ -246,9 +250,15 @@ class State:
         if len(args) == 1:
             if isinstance(args[0], list) or isinstance(args[0], tuple):
                 if len(args[0]) == 3:
-                    return self.i == args[0][0] and self.jj == args[0][1] and self.eigv == args[0][2]
+                    if isinstance(args[0][0], int):
+                        return self.i == args[0][0] and self.jj == args[0][1] and self.eigv == args[0][2]
+                    elif isinstance(args[0][0], str):
+                        return self.shell == args[0][0] and self.jj == args[0][1] and self.eigv == args[0][2]
         elif len(args) == 3:
-            return self.i == args[0] and self.jj == args[1] and self.eigv == args[2]
+            if isinstance(args[0], int):
+                return self.i == args[0] and self.jj == args[1] and self.eigv == args[2]
+            elif isinstance(args[0], str):
+                return self.shell == args[0] and self.jj == args[1] and self.eigv == args[2]
         
         print("Warning: bad arguments at state match: " + self.shell + ", " + str(self.jj) + ", " + str(self.eigv))
         return False
@@ -260,6 +270,14 @@ class State:
             list: list with the i, jj and eigv quantum numbers for this state
         """
         return [self.i, self.jj, self.eigv]
+    
+    def qns_s(self) -> List[str]:
+        """Helper function for a list of the state's quantum numbers in string format
+
+        Returns:
+            list: list with the i, jj and eigv quantum numbers for this state
+        """
+        return [str(self.i), str(self.jj), str(self.eigv)]
 
     def getDir(self) -> str:
         """Helper function to get the sub-directory for this state
@@ -471,43 +489,98 @@ manager = Manager()
 
 
 class Transition:
-    def __init__(self, i1: int, jj1: int, eigv1: int, i2: int, jj2: int, eigv2: int,
-                 shell1: str, configuration1: str, shell2: str, configuration2: str,
-                 higher_config1: str, highest_percent1: float,
-                 higher_config2: str, highest_percent2: float,
-                 energy: float = 0.0, rate: float = 0.0, total_rate: float = 0.0, multipole_array: list = []):
+    def __init__(self, i1: int = 0, jj1: int = 0, eigv1: int = 0, i2: int = 0, jj2: int = 0, eigv2: int = 0,
+                 shell1: str = "", configuration1: str = "", shell2: str = "", configuration2: str = "",
+                 higher_config1: str = "", highest_percent1: float = 0.0,
+                 higher_config2: str = "", highest_percent2: float = 0.0,
+                 energy: float = 0.0, rate: float = 0.0, total_rate: float = 0.0, multipole_array: list = [], line: str = ""):
+        
         self.i1 = i1
-        self.jj1 = jj1
-        self.eigv1 = eigv1
         self.i2 = i2
-        self.jj2 = jj2
-        self.eigv2 = eigv2
-        self.shell1 = shell1
-        self.configuration1 = configuration1
-        self.shell2 = shell2
-        self.configuration2 = configuration2
-        self.higher_config1 = higher_config1
-        self.highest_percent1 = highest_percent1
-        self.higher_config2 = higher_config2
-        self.highest_percent2 = highest_percent2
-        self.energy = energy
-        self.rate = rate
-        self.total_rate = total_rate
-        self.multipole_array = copy.deepcopy(multipole_array)
+        
+        if line == "":
+            self.jj1 = jj1
+            self.eigv1 = eigv1
+            self.jj2 = jj2
+            self.eigv2 = eigv2
+            self.shell1 = shell1
+            self.configuration1 = configuration1
+            self.shell2 = shell2
+            self.configuration2 = configuration2
+            self.higher_config1 = higher_config1
+            self.highest_percent1 = highest_percent1
+            self.higher_config2 = higher_config2
+            self.highest_percent2 = highest_percent2
+            self.energy = energy
+            self.rate = rate
+            self.total_rate = total_rate
+            self.multipole_array = copy.deepcopy(multipole_array)
+        else:
+            vals = line.strip().split("\t")
+            
+            if len(vals) == 16:
+                self.shell1 = vals[0]
+                self.configuration1 = vals[1]
+                self.jj1 = int(vals[2])
+                self.eigv1 = int(vals[3])
+                self.higher_config1 = vals[4]
+                self.highest_percent1 = float(vals[5])
+                self.shell2 = vals[6]
+                self.configuration2 = vals[7]
+                self.jj2 = int(vals[8])
+                self.eigv2 = int(vals[9])
+                self.higher_config2 = vals[10]
+                self.highest_percent2 = float(vals[11])
+                self.energy = float(vals[12])
+                self.rate = float(vals[13])
+                self.total_rate = float(vals[14])
+                
+                self.multipole_array = []
+            elif len(vals) > 16:
+                self.shell1 = vals[0]
+                self.configuration1 = vals[1]
+                self.jj1 = int(vals[2])
+                self.eigv1 = int(vals[3])
+                self.higher_config1 = vals[4]
+                self.highest_percent1 = float(vals[5])
+                self.shell2 = vals[6]
+                self.configuration2 = vals[7]
+                self.jj2 = int(vals[8])
+                self.eigv2 = int(vals[9])
+                self.higher_config2 = vals[10]
+                self.highest_percent2 = float(vals[11])
+                self.energy = float(vals[12])
+                self.rate = float(vals[13])
+                self.total_rate = float(vals[15])
+                
+                multipoles = vals[17:]
+                self.multipole_array = []
+                for idx in range(17, len(multipoles) + 17, 2):
+                    pole = [multipoles[idx], multipoles[idx + 1]]
+                    self.multipole_array.append(pole)
+            else:
+                print("Unrecognized transition line format. Expected 16 or more values, got " + str(len(vals)))
     
     def __str__(self):
         if len(self.multipole_array) > 0:
-            multipoles = '\t' + '\t'.join(['\t'.join(pole) for pole in self.multipole_array])
+            multipoles = '\t'.join(['\t'.join(pole) for pole in self.multipole_array])
+            
+            return f"{self.shell1}\t{self.configuration1}\t{self.jj1}\t{self.eigv1}\t\
+                        {self.higher_config1}\t{self.highest_percent1}\t\
+                        {self.shell2}\t{self.configuration2}\t{self.jj2}\t{self.eigv2}\t\
+                        {self.higher_config2}\t{self.highest_percent2}\t\
+                        {self.energy}\t{self.rate}\t{len(self.multipole_array)}\t\
+                        {self.total_rate}\t{float(self.rate) / self.total_rate if self.total_rate != 0.0 else 0.0}\t\
+                        {multipoles}"
         else:
             multipoles = ""
+            return f"{self.shell1}\t{self.configuration1}\t{self.jj1}\t{self.eigv1}\t\
+                        {self.higher_config1}\t{self.highest_percent1}\t\
+                        {self.shell2}\t{self.configuration2}\t{self.jj2}\t{self.eigv2}\t\
+                        {self.higher_config2}\t{self.highest_percent2}\t\
+                        {self.energy}\t{self.rate}\t{self.total_rate}\t\
+                        {float(self.rate) / self.total_rate if self.total_rate != 0.0 else 0.0}"
         
-        return f"{self.shell1}\t{self.configuration1}\t{self.jj1}\t{self.eigv1}\t\
-                    {self.higher_config1}\t{self.highest_percent1}\t\
-                    {self.shell2}\t{self.configuration2}\t{self.jj2}\t{self.eigv2}\t\
-                    {self.higher_config2}\t{self.highest_percent2}\t\
-                    {self.energy}\t{self.rate}\t{len(self.multipole_array)}\t\
-                    {self.total_rate}\t{float(self.rate) / self.total_rate if self.total_rate != 0.0 else 0.0}\
-                    {multipoles}"
     
     def match(self, *args) -> bool:
         """Test if the transition quantum numbers match the arguments given
@@ -532,7 +605,7 @@ class Transition:
         print("Warning: bad arguments at transition match: " + self.shell1 + ", " + str(self.jj1) + ", " + str(self.eigv1) + " => " + self.shell2 + ", " + str(self.jj2) + ", " + str(self.eigv2))
         return False
 
-    def qnsi(self) -> list:
+    def qnsi(self) -> List[int]:
         """Helper function for a list of the initial state's quantum numbers
 
         Returns:
@@ -540,13 +613,29 @@ class Transition:
         """
         return [self.i1, self.jj1, self.eigv1]
 
-    def qnsf(self) -> list:
+    def qnsf(self) -> List[int]:
         """Helper function for a list of the final state's quantum numbers
 
         Returns:
             list: list with the i, jj and eigv quantum numbers for the final state
         """
         return [self.i2, self.jj2, self.eigv2]
+    
+    def qnsi_s(self) -> List[str]:
+        """Helper function for a list of the initial state's quantum numbers in string format
+
+        Returns:
+            list: list with the i, jj and eigv quantum numbers for the initial state
+        """
+        return [str(self.i1), str(self.jj1), str(self.eigv1)]
+
+    def qnsf_s(self) -> List[str]:
+        """Helper function for a list of the final state's quantum numbers in string format
+
+        Returns:
+            list: list with the i, jj and eigv quantum numbers for the final state
+        """
+        return [str(self.i2), str(self.jj2), str(self.eigv2)]
 
     def set_parameters(self, energy: float, rate: float, total_rate: float, multipole_array: list = []):
         """Helper function to set the calculated transition's output parameters
@@ -575,6 +664,8 @@ calculatedShakeupTransitions:List[Transition] = []
 shakeup_swap_combCnt = 0
 # List of calculated satellite auger transitions and their energy and rate
 calculatedSatelliteAugerTransitions:List[Transition] = []
+# List of calculated 3 hole radiative transitions and their energy and rate
+calculated3RadiativeTransitions:List[Transition] = []
 
 
 # -------------------------------------------------------- #
@@ -617,6 +708,9 @@ f05AugTemplate_nuc = ''
 # String template for the .dat file required to configure the MCDFGME calculation directory
 mdfgmeFile = '	   nblipa=75 tmp_dir=./tmp/\n	   f05FileName\n	   0.\n'
 
+
+# ANSI sequence to clear the previously printed line
+clearLine = '\r\x1b[K'
 
 # ------------------------------------------ #
 # Variables for root directory configuration #
@@ -926,10 +1020,10 @@ def checkPartial():
         return 8, complete_sorted_1hole, complete_sorted_2holes
         ## Return the flags for the transitions that might need to be recalculated
         ## In this case the first element is 1 to flag that all type of transitions are to be potentially recalculated
-        return 1, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated
+        return 1, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated, last_3rad_calculated
         ## Return the flags for the transitions that might need to be recalculated
         ## In this case the first element is 2 to flag that the first 4 type of transitions are to be potentially recalculated
-        return 2, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated
+        return 2, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_3rad_calculated
         ## Return the flags for the transitions that might need to be recalculated
         ## In this case the first element is 3 to flag that the first 4 type of transitions are to be potentially recalculated
         return 3, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_shakeup_calculated
@@ -1246,9 +1340,9 @@ def checkPartial():
         return complete_sorted_1hole, complete_sorted_2holes, complete_sorted_3holes, complete_sorted_shakeup
     
     
-    def readTransitions(read_rad = False, read_aug = False, read_shakeoff = False, read_sat_aug = False, read_shakeup = False) -> \
+    def readTransitions(read_rad = False, read_aug = False, read_shakeoff = False, read_sat_aug = False, read_3rad = False, read_shakeup = False) -> \
         tuple[List[tuple[int]] | bool | None, List[tuple[int]] | bool | None, List[tuple[int]] | bool | None, \
-              List[tuple[int]] | bool | None, List[tuple[int]] | bool | None]:
+              List[tuple[int]] | bool | None, List[tuple[int]] | bool | None, List[tuple[int]] | bool | None]:
         """Helper function to read the transitions from file.
         The transitions are not updated but the last calculated transitions are returned.
         Warning: the return types are conditional.
@@ -1256,8 +1350,8 @@ def checkPartial():
         Returns:
             tuple[List[tuple[int]] | bool | None, List[tuple[int]] | bool | None,
             List[tuple[int]] | bool | None, List[tuple[int]] | bool | None,
-            List[tuple[int]] | bool | None]:
-            each return parameter is respective to radiative, auger, satellite, shakeup or auger satellite.
+            List[tuple[int]] | bool | None, List[tuple[int]] | bool | None]:
+            each return parameter is respective to radiative, auger, satellite, auger satellite, 3 hole radiative or shakeup transitions.
             It can be None if the transition type is not being read, boolean if the file is missing or a list or tuples
             with the last calculated transition for the type.
         """
@@ -1267,6 +1361,7 @@ def checkPartial():
         last_sat_calculated = None
         last_shakeup_calculated = None
         last_sat_auger_calculated = None
+        last_3rad_calculated = None
         
         # Radiative transitions
         if read_rad:
@@ -1274,14 +1369,14 @@ def checkPartial():
                 with open(file_calculated_radiative, "r") as rad_calculated:
                     rad_calculated.readline()
                     for line in rad_calculated:
-                        if line != "\n" and "Calculated" not in line:
+                        if "Finished" in line:
+                            last_rad_calculated = True
+                            break
+                        elif line != "\n" and "Calculated" not in line:
                             state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
                             state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
                             
                             last_rad_calculated = [state_i, state_f]
-                        elif "Finished" in line:
-                            last_rad_calculated = True
-                            break
             else:
                 last_rad_calculated = False
         
@@ -1291,14 +1386,14 @@ def checkPartial():
                 with open(file_calculated_auger, "r") as aug_calculated:
                     aug_calculated.readline()
                     for line in aug_calculated:
-                        if line != "\n" and "Calculated" not in line:
+                        if "Finished" in line:
+                            last_aug_calculated = True
+                            break
+                        elif line != "\n" and "Calculated" not in line:
                             state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
                             state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
                             
                             last_aug_calculated = [state_i, state_f]
-                        elif "Finished" in line:
-                            last_aug_calculated = True
-                            break
             else:
                 last_aug_calculated = False
         
@@ -1308,14 +1403,14 @@ def checkPartial():
                 with open(file_calculated_shakeoff, "r") as sat_calculated:
                     sat_calculated.readline()
                     for line in sat_calculated:
-                        if line != "\n" and "Calculated" not in line:
+                        if "Finished" in line:
+                            last_sat_calculated = True
+                            break
+                        elif line != "\n" and "Calculated" not in line:
                             state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
                             state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
                             
                             last_sat_calculated = [state_i, state_f]
-                        elif "Finished" in line:
-                            last_sat_calculated = True
-                            break
             else:
                 last_sat_calculated = False
         
@@ -1325,14 +1420,14 @@ def checkPartial():
                 with open(file_calculated_shakeup, "r") as shakeup_calculated:
                     shakeup_calculated.readline()
                     for line in shakeup_calculated:
-                        if line != "\n" and "Calculated" not in line:
+                        if "Finished" in line:
+                            last_shakeup_calculated = True
+                            break
+                        elif line != "\n" and "Calculated" not in line:
                             state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
                             state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
                             
                             last_shakeup_calculated = [state_i, state_f]
-                        elif "Finished" in line:
-                            last_shakeup_calculated = True
-                            break
             else:
                 last_shakeup_calculated = False
         
@@ -1342,19 +1437,35 @@ def checkPartial():
                 with open(file_calculated_sat_auger, "r") as sat_auger_calculated:
                     sat_auger_calculated.readline()
                     for line in sat_auger_calculated:
-                        if line != "\n" and "Calculated" not in line:
+                        if "Finished" in line:
+                            last_sat_auger_calculated = True
+                            break
+                        elif line != "\n" and "Calculated" not in line:
                             state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
                             state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
                             
                             last_sat_auger_calculated = [state_i, state_f]
-                        elif "Finished" in line:
-                            last_sat_auger_calculated = True
-                            break
             else:
                 last_sat_auger_calculated = False
         
+        # 3 hole radiative transitions
+        if read_3rad:
+            if os.path.isfile(file_calculated_3radiative):
+                with open(file_calculated_3radiative, "r") as rad3_calculated:
+                    rad3_calculated.readline()
+                    for line in rad3_calculated:
+                        if "Finished" in line:
+                            last_3rad_calculated = True
+                            break
+                        elif line != "\n" and "Calculated" not in line:
+                            state_i = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[0].split(", "))
+                            state_f = tuple(int(qn) for qn in line.split("//")[0].strip().split(" => ")[1].split(", "))
+                            
+                            last_3rad_calculated = [state_i, state_f]
+            else:
+                last_3rad_calculated = False
         
-        return last_rad_calculated, last_aug_calculated, last_sat_calculated, last_sat_auger_calculated, last_shakeup_calculated
+        return last_rad_calculated, last_aug_calculated, last_sat_calculated, last_sat_auger_calculated, last_3rad_calculated, last_shakeup_calculated # type: ignore
     
     
     
@@ -1392,6 +1503,7 @@ def checkPartial():
         last_shakeoff_calculated = False
         last_sat_auger_calculated = False
         last_shakeup_calculated = False
+        last_3rad_calculated = False
         
         
         # Flow control flags
@@ -1410,6 +1522,7 @@ def checkPartial():
         shakeoff_trans_found = False
         shakeup_trans_found = False
         sat_aug_trans_found = False
+        rad3_trans_found = False
         
         
         log_1hole_found = None
@@ -1589,7 +1702,7 @@ def checkPartial():
             rad_trans_found = True
             print("\nFound the file with the last calculated radiative transitions.")
             
-            last_rad_calculated, _, _, _, _ = readTransitions(True)
+            last_rad_calculated, _, _, _, _, _ = readTransitions(True)
         else:
             print("\n No radiative transitions file was found!!!")
         
@@ -1598,7 +1711,7 @@ def checkPartial():
             aug_trans_found = True
             print("\nFound the file with the last calculated auger transitions.")
             
-            _, last_aug_calculated, _, _, _ = readTransitions(False, True)
+            _, last_aug_calculated, _, _, _, _ = readTransitions(False, True)
         else:
             print("\n No auger transitions file was found!!!")
         
@@ -1607,7 +1720,7 @@ def checkPartial():
             shakeoff_trans_found = True
             print("\nFound the file with the last calculated shake-off transitions.")
             
-            _, _, last_shakeoff_calculated, _, _ = readTransitions(False, False, True)
+            _, _, last_shakeoff_calculated, _, _, _ = readTransitions(False, False, True)
         else:
             print("\n No shake-off transitions file was found!!!")
         
@@ -1616,7 +1729,7 @@ def checkPartial():
             shakeup_trans_found = True
             print("\nFound the file with the last calculated shake-up transitions.")
             
-            _, _, _, _, last_shakeup_calculated = readTransitions(False, False, False, False, True)
+            _, _, _, _, _, last_shakeup_calculated = readTransitions(False, False, False, False, False, True)
         else:
             print("\n No shake-up transitions file was found!!!")
         
@@ -1625,14 +1738,23 @@ def checkPartial():
             sat_aug_trans_found = True
             print("\nFound the file with the last calculated satellite auger transitions.")
             
-            _, _, _, last_sat_auger_calculated, _ = readTransitions(False, False, False, True)
+            _, _, _, last_sat_auger_calculated, _, _ = readTransitions(False, False, False, True)
         else:
             print("\n No satellite auger transitions file was found!!!")
+        
+        # Check if the file with 3 hole radiative transitions exists
+        if os.path.isfile(file_calculated_3radiative):
+            rad3_trans_found = True
+            print("\nFound the file with the last calculated 3 hole radiative transitions.")
+            
+            _, _, _, _, last_3rad_calculated, _ = readTransitions(False, False, False, False, True)
+        else:
+            print("\n No 3 hole radiative transitions file was found!!!")
         
         
         log_flags = [complete_1hole, complete_2holes, complete_3holes, complete_shakeup]
         sorted_flags = [sorted_1hole_found, sorted_2hole_found, sorted_3hole_found, sorted_shakeup_found]
-        transition_flags = [rad_trans_found, aug_trans_found, shakeoff_trans_found, sat_aug_trans_found, shakeup_trans_found]
+        transition_flags = [rad_trans_found, aug_trans_found, shakeoff_trans_found, sat_aug_trans_found, rad3_trans_found, shakeup_trans_found]
         
         # If there was a problem with the log files then we cannot procede
         if not any(log_flags):
@@ -1834,7 +1956,7 @@ def checkPartial():
                     
                     # Return the flags for the transitions that might need to be recalculated
                     # In this case the first element is 1 to flag that all type of transitions are to be potentially recalculated
-                    return 1, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated
+                    return 1, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated, last_3rad_calculated
                 else:
                     # Check if all sorted flags are valid even though not all transition flags are
                     if all(sorted_flags):
@@ -1843,7 +1965,7 @@ def checkPartial():
                         
                         # Return the flags for the transitions that might need to be recalculated
                         # In this case the first element is 1 to flag that all type of transitions are to be potentially recalculated
-                        return 1, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated
+                        return 1, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated, last_3rad_calculated
                     # Check if all log flags are valid even though not all sorted and transition flags are
                     elif all(log_flags):
                         print("\n There was an error while reading the energy sorted states file!!!")
@@ -1869,7 +1991,7 @@ def checkPartial():
                     
                     # Return the flags for the transitions that might need to be recalculated
                     # In this case the first element is 2 to flag that the first 4 type of transitions are to be potentially recalculated
-                    return 2, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated
+                    return 2, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_3rad_calculated
                 else:
                     # Check if all sorted flags are valid even though not all transition flags are
                     if all(sorted_flags[:-1]):
@@ -1878,7 +2000,7 @@ def checkPartial():
                         
                         # Return the flags for the transitions that might need to be recalculated
                         # In this case the first element is 1 to flag that all type of transitions are to be potentially recalculated
-                        return 2, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated
+                        return 2, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_3rad_calculated
                     # Check if all log flags are valid even though not all sorted and transition flags are
                     elif all(log_flags[:-1]):
                         print("\n There was an error while reading the energy sorted states file!!!")
@@ -1936,7 +2058,7 @@ def checkPartial():
             # If the calculation is configured to calculate only 1 and 2 hole states
             else:
                 # We check if all log, sorted and transition flags are valid
-                if all(log_flags[:-2]) and all(sorted_flags[:-2]) and all(transition_flags[:-2]):
+                if all(log_flags[:-3]) and all(sorted_flags[:-3]) and all(transition_flags[:-3]):
                     print("\n All state log files, energy sorted files and transition files were found with the expected contents.")
                     
                     # Return the flags for the transitions that might need to be recalculated
@@ -2255,7 +2377,7 @@ def executeBatchStateCalculation(parallel_paths: List[str], log_file: str = '', 
     """
     parallel_max_paths = (len(parallel_paths) * parallel_max_length / len(' '.join(parallel_paths))) / 17
     if len(parallel_paths) < parallel_max_paths:
-        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths) + ' >/dev/null'], shell=True)
+        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths) + ' >/dev/null'], shell=True) # type: ignore
         if log_file != '' and state_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
                 log.write(log_line_header)
@@ -2263,7 +2385,7 @@ def executeBatchStateCalculation(parallel_paths: List[str], log_file: str = '', 
     else:
         pl: int = 0
         for pl in range(int(len(parallel_paths) / parallel_max_paths)):
-            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]) + ' >/dev/null'], shell=True)
+            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]) + ' >/dev/null'], shell=True) # type: ignore
             
             if log_file != '' and state_list != [] and log_line_header != '':
                 with open(log_file, "a") as log:
@@ -2273,7 +2395,7 @@ def executeBatchStateCalculation(parallel_paths: List[str], log_file: str = '', 
                     log.write(', '.join([str(qn) for qn in state_list[int((pl + 1) * parallel_max_paths) - 1].qns()]) + "\n")
         
         
-        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int((pl + 1) * parallel_max_paths):]) + ' >/dev/null'], shell=True)
+        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int((pl + 1) * parallel_max_paths):]) + ' >/dev/null'], shell=True) # type: ignore
         
         if log_file != '' and state_list != [] and log_line_header != '':
             with open(log_file, "a") as log:
@@ -2309,7 +2431,7 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
             shutil.copy(wf_src, wf_dst)
         
         # EXECUTE PARALLEL JOB
-        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths) + ' >/dev/null'], shell=True)
+        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths) + ' >/dev/null'], shell=True) # type: ignore
         
         # LOG THE CALCULATED STATES
         if log_file != '' and transition_list != [] and log_line_header != '':
@@ -2344,7 +2466,7 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
         
             
             # EXECUTE PARALLEL JOB FOR THIS BATCH
-            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]) + ' >/dev/null'], shell=True)
+            subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int(pl * parallel_max_paths):int((pl + 1) * parallel_max_paths)]) + ' >/dev/null'], shell=True) # type: ignore
             
             
             # ONLY LOG FULL BATCHES AS THIS IS WHAT WILL BE WRITTEN TO FILE
@@ -2383,7 +2505,7 @@ def executeBatchTransitionCalculation(parallel_paths: List[str], \
         
         
         # EXECUTE PARALLEL JOB FOR THE LAST BATCH
-        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int((pl + 1) * parallel_max_paths):]) + ' >/dev/null'], shell=True)
+        subprocess.check_output(['parallel -j' + number_of_threads + ' --bar --files ' + "'cd {//} && {/} && cd -'" + ' ::: ' + ' '.join(parallel_paths[int((pl + 1) * parallel_max_paths):]) + ' >/dev/null'], shell=True) # type: ignore
         
         
         # COPY .f09 WAVEFUNCTION FILES FOR THE LAST BATCH
@@ -2665,7 +2787,7 @@ def calculateStates(shell_labels: List[str], sub_dir: str, electron_configuratio
         with open(file_cycle_log, "a") as log:
             log.write(log_header)
             for state in calculatedStates:
-                log.write(', '.join(state.qns()) + "\n")
+                log.write(', '.join(state.qns_s()) + "\n")
             
             log.write("ListEnd\n")
     
@@ -3240,7 +3362,7 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
             calculatedTransitions.append(new_transition)
             
             if starting_transition == [[0, 0, 0], [0, 0, 0]] or found_starting:
-                print("Preparing Transition: " + str(combCnt + 1), end="\r")
+                print(clearLine + "Preparing Transition: " + str(combCnt + 1), end="")
                 
                 currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
                 currFileName = str(combCnt)
@@ -3266,7 +3388,7 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
                 
                 parallel_transition_paths.append(currDir + "/" + exe_file)
             else:
-                print("Finding Initial Transition: " + str(combCnt + 1), end="\r")
+                print(clearLine + "Finding Initial Transition: " + str(combCnt + 1), end="")
             
             combCnt += 1
             
@@ -3290,7 +3412,7 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
                     
                     
                     for cnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
-                        print("Reading " + transitions_dir + " transition: " + str(cnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+                        print(clearLine + "Reading " + transitions_dir + " transition: " + str(cnt + 1) + "/" + str(len(calculatedTransitions)), end="")
                         
                         currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(cnt)
                         currFileName = str(cnt)
@@ -3331,7 +3453,7 @@ def rates(calculatedStates: List[State], calculatedTransitions: List[Transition]
     
     
     for combCnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
-        print("Reading " + transitions_dir + " transition: " + str(combCnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+        print(clearLine + "Reading " + transitions_dir + " transition: " + str(combCnt + 1) + "/" + str(len(calculatedTransitions)), end="")
         
         currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
         currFileName = str(combCnt)
@@ -3412,7 +3534,7 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
             calculatedTransitions.append(new_transition)
             
             if starting_transition == [[0, 0, 0], [0, 0, 0]] or found_starting:
-                print("Preparing Transition: " + str(combCnt + 1), end="\r")
+                print(clearLine + "Preparing Transition: " + str(combCnt + 1), end="")
                 
                 currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
                 currFileName = str(combCnt)
@@ -3439,7 +3561,7 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
                 
                 parallel_transition_paths.append(currDir + "/" + exe_file)
             else:
-                print("Finding Initial Transition: " + str(combCnt + 1), end="\r")
+                print(clearLine + "Finding Initial Transition: " + str(combCnt + 1), end="")
             
             combCnt += 1
             
@@ -3463,7 +3585,7 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
                     
                     
                     for cnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
-                        print("Reading " + transitions_dir + " transition: " + str(cnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+                        print(clearLine + "Reading " + transitions_dir + " transition: " + str(cnt + 1) + "/" + str(len(calculatedTransitions)), end="")
                         
                         currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(cnt)
                         currFileName = str(cnt)
@@ -3502,7 +3624,7 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
     
     
     for combCnt, transition in enumerate(calculatedTransitions[int(batch * max_transitions):], int(batch * max_transitions)):
-        print("Reading " + transitions_dir + " transition: " + str(combCnt + 1) + "/" + str(len(calculatedTransitions)), end="\r")
+        print(clearLine + "Reading " + transitions_dir + " transition: " + str(combCnt + 1) + "/" + str(len(calculatedTransitions)), end="")
         
         currDir = rootDir + "/" + directory_name + "/transitions/" + transitions_dir + "/" + str(combCnt)
         currFileName = str(combCnt)
@@ -3523,7 +3645,41 @@ def rates_auger(calculatedStates_i: List[State], calculatedStates_f: List[State]
 
 
 
-def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: bool, sat_aug_done: bool, shakeup_done: bool) -> None:
+def readRates(source: str, transition_mod: str, shell_labels_1: List[str], calculatedTransitions: List[Transition], shell_labels_2: List[str] = []):
+    """Function to read the transition rates from the rates files.
+
+    Args:
+        source (str): filename with the transition rates
+        transition_mod (str): transition type modifier to format the rates file
+        shell_labels_1 (List[str]): shell array with the labels used in the initial states of the transitions
+        calculatedTransitions (List[Transition]): transition object list where to store the results
+        shell_labels_2 (List[str], optional): shell array with the labels used in the final states of the transitions. Only required for auger transitions. Defaults to [].
+    """
+    with open(source, "r") as rates_file:
+        rates_file.readline()
+        rates_file.readline()
+        
+        idx = 1
+        for line in rates_file:
+            print(clearLine + "Reading " + transition_mod + " transition " + str(idx))
+            
+            vals = line.strip().split("\t")
+            
+            i1 = shell_labels_1.index(vals[0])
+            if len(shell_labels_2) == 0:
+                i2 = shell_labels_1.index(vals[6])
+            else:
+                i2 = shell_labels_2.index(vals[6])
+            
+            new_transition = Transition(i1 = i1, i2 = i2, line = line)
+            
+            calculatedTransitions.append(new_transition)
+            
+            idx += 1
+
+
+
+def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: bool, sat_aug_done: bool, rad3_done: bool, shakeup_done: bool) -> None:
     """Function to calculate the spectra with the current states and transitions.
 
     Args:
@@ -3531,6 +3687,7 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
         auger_done (bool): flag to control if the auger spectrum is to be calculated
         satellite_done (bool): flag to control if the satellite spectrum is to be calculated
         sat_aug_done (bool): flag to control if the satellite auger spectrum is to be calculated
+        rad3_done (bool): flag to control if the 3 hole radiative spectrum is to be calculated
         shakeup_done (bool): flag to control if the shakeup spectrum is to be calculated
     """
     print("############ Calculating the sums ###################")
@@ -3563,7 +3720,11 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     
     with open(file_rates_sums, "w") as rates_sums:
         for k in range(len(shell_array)):
-            fluorescenceyield.append(radiative_rate_per_shell[k] / (auger_rate_per_shell[k] + radiative_rate_per_shell[k]))
+            if auger_rate_per_shell[k] > 0.0 or radiative_rate_per_shell[k] > 0.0:
+                fluorescenceyield.append(radiative_rate_per_shell[k] / (auger_rate_per_shell[k] + radiative_rate_per_shell[k]))
+            else:
+                fluorescenceyield.append(0.0)
+            
             print("Fluorescence Yield for " + shell_array[k] + " = radiative (" + str(radiative_rate_per_shell[k]) + ") / radiative (" + str(radiative_rate_per_shell[k]) + ") + auger (" + str(auger_rate_per_shell[k]) + ") = " + str(fluorescenceyield[k]))
             rates_sums.write(shell_array[k] + "\n\n")
             rates_sums.write("multiplicity of states = " + str(multiplicity_JJ[k]) + "\n")
@@ -3601,7 +3762,11 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
         
         with open(file_rates_sums_shakeoff, "w") as rates_sums_sat:
             for k in range(len(shell_array_2holes)):
-                fluorescenceyield_sat.append(radiative_rate_per_shell_sat[k] / (auger_rate_per_shell_sat[k] + radiative_rate_per_shell_sat[k]))
+                if radiative_rate_per_shell_sat[k] > 0.0 or auger_rate_per_shell_sat[k] > 0.0:
+                    fluorescenceyield_sat.append(radiative_rate_per_shell_sat[k] / (auger_rate_per_shell_sat[k] + radiative_rate_per_shell_sat[k]))
+                else:
+                    fluorescenceyield_sat.append(0.0)
+                
                 print("Fluorescence Yield for " + shell_array_2holes[k] + " = radiative (" + str(radiative_rate_per_shell_sat[k]) + ") / radiative (" + str(radiative_rate_per_shell_sat[k]) + ") + auger (" + str(auger_rate_per_shell_sat[k]) + ") = " + str(fluorescenceyield_sat[k]))
                 rates_sums_sat.write(shell_array_2holes[k] + "\n\n")
                 rates_sums_sat.write("multiplicity of states = " + str(multiplicity_JJ_sat[k]) + "\n")
@@ -3617,8 +3782,31 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
                 rates_sums_sat.write("radiative * multiplicity of states = " + str(radiative_rate_per_shell_sat[k]) + "\n")
                 rates_sums_sat.write("\n\n")
 	
-	
     print("JJ multiplicity/shell sat == " + ', '.join([str(jj) for jj in multiplicity_JJ_sat]) + "\n")
+    
+    
+    if calculate_3holes:
+        print("\nCalculating shell rates and multiplicities for 3 hole transitions...\n")
+        
+        multiplicity_JJ_3rad = [0] * len(shell_array_3holes)
+        
+        radiative_rate_per_shell_3rad = [0.0] * len(shell_array_3holes)
+        
+        for state in calculated3holesStates:
+            multiplicity_JJ_3rad[state.i] += state.jj + 1
+        
+        for transition in calculated3RadiativeTransitions:
+            radiative_rate_per_shell_3rad[transition.i1] += transition.rate * (transition.jj1 + 1)
+        
+        
+        with open(file_rates_sums_3radiative, "w") as rates_sums_3rad:
+            for k in range(len(shell_array_3holes)):
+                rates_sums_3rad.write(shell_array_3holes[k] + "\n")
+                rates_sums_3rad.write("multiplicity of states = " + str(multiplicity_JJ_3rad[k]) + "\n")
+                rates_sums_3rad.write("radiative * multiplicity of states = " + str(radiative_rate_per_shell_3rad[k]) + "\n")
+                rates_sums_3rad.write("\n\n")
+	
+        print("JJ multiplicity/shell sat == " + ', '.join([str(jj) for jj in multiplicity_JJ_3rad]) + "\n")
 	
     
     if calculate_shakeup:
@@ -3655,6 +3843,7 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     
     if calculate_3holes:
         rate_level_auger_sat = dict.fromkeys([tuple(state.qns()) for state in calculated2holesStates], 0.0)
+        rate_level_3radiative_rad = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], 0.0)
     if calculate_shakeup:
         rate_level_radiative_shakeup = dict.fromkeys([tuple(state.qns()) for state in calculatedShakeupStates], 0.0)
     
@@ -3665,8 +3854,8 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
     rate_level_sat_ev = dict.fromkeys([tuple(state.qns()) for state in calculated2holesStates], 0.0)
     
     if calculate_3holes:
-        rate_level_sat_auger = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], 0.0)
-        rate_level_sat_auger_ev = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], 0.0)
+        rate_level_3radiative = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], 0.0)
+        rate_level_3radiative_ev = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], 0.0)
     
     if calculate_shakeup:
         rate_level_shakeup = dict.fromkeys([tuple(state.qns()) for state in calculatedShakeupStates], 0.0)
@@ -3713,21 +3902,24 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
         rate_level_sat_ev[state_i] = rate_level_sat[state_i] * hbar
     
     
-    # Satellite auger widths
+    # 3 hole radiative widths
     
     if calculate_3holes:
         fluor_3holes = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], 0.0)
         shell_fl_dia_3holes = dict.fromkeys([tuple(state.qns()) for state in calculated3holesStates], "")
-    
-        for state_i in rate_level_sat_auger: # type: ignore
+
+        for transition in calculated3RadiativeTransitions:
+            rate_level_3radiative_rad[tuple(transition.qnsi())] += transition.rate # type: ignore
+        
+        for state_i in rate_level_3radiative: # type: ignore
             shell_sat_auger = shell_array_3holes[state_i[0]].split("_")
             
-            k = shell_array.index(shell_sat_auger[0])
-            fluor_3holes[state_i] = fluorescenceyield[k]
-            shell_fl_dia_3holes[state_i] = shell_array[k]
+            k = shell_array_2holes.index(shell_sat_auger[0] + "_" + shell_sat_auger[1])
+            fluor_3holes[state_i] = fluorescenceyield_sat[k] # type: ignore
+            shell_fl_dia_3holes[state_i] = shell_array_2holes[k]
             
-            rate_level_sat_auger[state_i] = rate_level_auger_sat[state_i] / fluorescenceyield[k] # type: ignore
-            rate_level_sat_auger_ev[state_i] = rate_level_sat_auger[state_i] * hbar # type: ignore
+            rate_level_3radiative[state_i] = rate_level_3radiative_rad[state_i] / fluorescenceyield_sat[k] # type: ignore
+            rate_level_3radiative_ev[state_i] = rate_level_3radiative[state_i] * hbar # type: ignore
     
     
     # Shake-up widths
@@ -3833,10 +4025,10 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
                     rate_level_radiative_sat, shell_fl_dia, fluor_sat, rate_level_sat_ev)
     
     if calculate_3holes:
-        print("############ Writing satellite auger level widths ###################")
+        print("############ Writing 3 hole radiative level widths ###################")
         
-        writeWidthsNoAug(file_level_widths_sat_auger, rate_level_sat_auger, shell_array_3holes, configuration_3holes, # type: ignore
-                         rate_level_auger_sat, shell_fl_dia_3holes, fluor_3holes, rate_level_sat_auger_ev) # type: ignore
+        writeWidthsNoAug(file_level_widths_3radiative, rate_level_3radiative, shell_array_3holes, configuration_3holes, # type: ignore
+                         rate_level_3radiative_rad, shell_fl_dia_3holes, fluor_3holes, rate_level_3radiative_ev) # type: ignore
     
     if calculate_shakeup:
         print("############ Writing shake-up level widths ###################")
@@ -3994,7 +4186,15 @@ def calculateSpectra(radiative_done: bool, auger_done: bool, satellite_done: boo
         
         writeSpectrumAuger(file_rates_spectrum_sat_auger, calculated2holesStates, calculated3holesStates,
                            calculatedSatelliteAugerTransitions, multiplicity_JJ_sat, rate_level_sat, rate_level_sat_ev,
-                           rate_level_sat_auger_ev) # type: ignore
+                           rate_level_3radiative_ev) # type: ignore
+    
+    # -------------------- WRITE 3 HOLE RADIATIVE SPECTRUM -------------------- #
+    
+    if rad3_done:
+        print("############ Writing 3 hole radiative spectrum ###################\n")
+        
+        writeSpectrum(file_rates_spectrum_3radiative, calculated3holesStates, calculated3RadiativeTransitions,
+                      multiplicity_JJ_3rad, rate_level_3radiative, rate_level_3radiative_ev) # type: ignore
     
     # -------------------- WRITE SHAKE-UP SPECTRUM -------------------- #
     
@@ -5661,15 +5861,15 @@ def setupFiles():
     """
     global file_cycle_log_1hole, file_cycle_log_2holes, file_cycle_log_3holes, file_cycle_log_shakeup
     global file_sorted_1hole, file_sorted_2holes, file_sorted_3holes, file_sorted_shakeup
-    global file_calculated_radiative, file_calculated_auger, file_calculated_shakeoff, file_calculated_shakeup, file_calculated_sat_auger
+    global file_calculated_radiative, file_calculated_auger, file_calculated_shakeoff, file_calculated_shakeup, file_calculated_sat_auger, file_calculated_3radiative
     global file_parameters, file_results, file_final_results
     global file_final_results_1hole, file_final_results_2holes, file_final_results_3holes, file_final_results_shakeup
     global file_final_results_1hole_reports, file_final_results_2holes_reports, file_final_results_3holes_reports, file_final_results_shakeup_reports
     global file_standard_orb_mods
-    global file_rates, file_rates_auger, file_rates_shakeoff, file_rates_shakeup, file_rates_sat_auger
-    global file_rates_spectrum_diagram, file_rates_spectrum_auger, file_rates_spectrum_shakeoff, file_rates_spectrum_shakeup
-    global file_rates_sums, file_rates_sums_shakeoff, file_rates_sums_shakeup
-    global file_level_widths, file_level_widths_shakeoff, file_level_widths_shakeup, file_level_widths_sat_auger
+    global file_rates, file_rates_auger, file_rates_shakeoff, file_rates_shakeup, file_rates_sat_auger, file_rates_3radiative
+    global file_rates_spectrum_diagram, file_rates_spectrum_auger, file_rates_spectrum_shakeoff, file_rates_spectrum_shakeup, file_rates_spectrum_sat_auger, file_rates_spectrum_3radiative
+    global file_rates_sums, file_rates_sums_shakeoff, file_rates_sums_shakeup, file_rates_sums_3radiative
+    global file_level_widths, file_level_widths_shakeoff, file_level_widths_shakeup, file_level_widths_3radiative
     global file_automatic_configurations
     
     
@@ -5688,6 +5888,7 @@ def setupFiles():
     file_calculated_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_shakeoff_calculated.txt"
     file_calculated_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_shakeup_calculated.txt"
     file_calculated_sat_auger = rootDir + "/" + directory_name + "/" + directory_name + "_sat_auger_calculated.txt"
+    file_calculated_3radiative = rootDir + "/" + directory_name + "/" + directory_name + "_3radiative_calculated.txt"
     
     file_parameters = rootDir + "/" + directory_name + "/calculation_parameters.txt"
     file_results = rootDir + "/" + directory_name + "/" + directory_name + "_results_all_cicles.txt"
@@ -5710,23 +5911,27 @@ def setupFiles():
     file_rates_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_rates_shakeoff.txt"
     file_rates_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_rates_shakeup.txt"
     file_rates_sat_auger = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sat_auger.txt"
+    file_rates_3radiative = rootDir + "/" + directory_name + "/" + directory_name + "_rates_3radiative.txt"
     
     file_rates_spectrum_diagram = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_diagram.txt"
     file_rates_spectrum_auger = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_auger.txt"
     file_rates_spectrum_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_shakeoff.txt"
     file_rates_spectrum_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_shakeup.txt"
+    file_rates_spectrum_sat_auger = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_sat_auger.txt"
+    file_rates_spectrum_3radiative = rootDir + "/" + directory_name + "/" + directory_name + "_spectrum_3radiative.txt"
     
     file_rates_sums = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums.txt" 
     file_rates_sums_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums_shakeoff.txt" 
     file_rates_sums_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_rates_sums_shakeup.txt"
+    file_rates_sums_3radiative = rootDir + "/" + directory_name + "/" + directory_name + "_rates_3radiative.txt"
 
     file_level_widths = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths.txt"
     file_level_widths_shakeoff = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_shakeoff.txt"
     file_level_widths_shakeup = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_shakeup.txt"
-    file_level_widths_sat_auger = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_sat_auger.txt"
+    file_level_widths_3radiative = rootDir + "/" + directory_name + "/" + directory_name + "_level_widths_3radiative.txt"
     
     file_automatic_configurations = rootDir + "/" + directory_name + "/backup_generated_configurations.txt"
-
+    
 
 def writeCalculationParameters():
     """Function to write the calculation parameters to the correct file
@@ -5750,7 +5955,7 @@ def writeCalculationParameters():
             fp.write("Nuclear mass: " + str(nuc_mass) + "\n")
             fp.write("Nuclear model: " + nuc_model + "\n")
         
-        fp.write("Number of considered threads in the calculation= " + number_of_threads + "\n")
+        fp.write("Number of considered threads in the calculation= " + number_of_threads + "\n") # type: ignore
 
 
 def InitialPrompt():
@@ -6027,12 +6232,14 @@ if __name__ == "__main__":
     redo_sat = False
     redo_shakeup = False
     redo_sat_aug = False
+    redo_3rad = False
     
     partial_rad = False
     partial_aug = False
     partial_sat = False
     partial_shakeup = False
     partial_sat_aug = False
+    partial_3rad = False
     
     
     radiative_done = False
@@ -6040,6 +6247,7 @@ if __name__ == "__main__":
     satellite_done = False
     shakeup_done = False
     sat_aug_done = False
+    rad3_done = False
     
     
     if not partial:
@@ -6071,6 +6279,7 @@ if __name__ == "__main__":
                 redo_sat = True
                 redo_shakeup = True
                 redo_sat_aug = True
+                redo_3rad = True
             elif flags == 2:
                 # 2 flags that we can proceed with the calculation from the current sorted states list and start calculating the transitions
                 # We only need to set resort to false. The parameters have already been read in the checkPartial
@@ -6082,39 +6291,40 @@ if __name__ == "__main__":
                 redo_sat = True
                 redo_shakeup = True
                 redo_sat_aug = True
+                redo_3rad = True
             elif flags == -1:
                 # Default case. We revert to full calculation
                 partial = False
         else:
-            if flags[0] == 1 and len(flags) > 7: # type: ignore
+            if flags[0] == 1 and len(flags) == 11: # type: ignore
                 redo_energy_calc = True
                 
                 _, complete_1hole, complete_2holes, complete_3holes, complete_shakeup, \
                 last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, last_calculated_cycle_shakeup, \
                 last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes, last_calculated_state_shakeup = flags # type: ignore
-            elif flags[0] == 2 and len(flags) > 6: # type: ignore
+            elif flags[0] == 2 and len(flags) == 10: # type: ignore
                 redo_energy_calc = True
                 
                 _, complete_1hole, complete_2holes, complete_3holes, \
                 last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_3holes, \
                 last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_3holes = flags # type: ignore
-            elif flags[0] == 3 and len(flags) > 6: # type: ignore
+            elif flags[0] == 3 and len(flags) == 10: # type: ignore
                 redo_energy_calc = True
                 
                 _, complete_1hole, complete_2holes, complete_shakeup, \
                 last_calculated_cycle_1hole, last_calculated_cycle_2holes, last_calculated_cycle_shakeup, \
                 last_calculated_state_1hole, last_calculated_state_2holes, last_calculated_state_shakeup = flags # type: ignore
-            elif flags[0] == 4 and len(flags) > 4: # type: ignore
+            elif flags[0] == 4 and len(flags) == 7: # type: ignore
                 redo_energy_calc = True
                 
                 _, complete_1hole, complete_2holes, \
                 last_calculated_cycle_1hole, last_calculated_cycle_2holes, \
                 last_calculated_state_1hole, last_calculated_state_2holes = flags # type: ignore
-            elif flags[0] == 1 and len(flags) < 7: # type: ignore
+            elif flags[0] == 1 and len(flags) == 7: # type: ignore
                 resort = False
                 redo_transitions = True
                 
-                _, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated = flags # type: ignore
+                _, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_shakeup_calculated, last_3rad_calculated = flags # type: ignore
                 
                 if type(last_rad_calculated) == type(False):
                     redo_rad = not last_rad_calculated
@@ -6140,11 +6350,16 @@ if __name__ == "__main__":
                     redo_shakeup = not last_shakeup_calculated
                 else:
                     partial_shakeup = True
-            elif flags[0] == 2 and len(flags) < 6: # type: ignore
+                
+                if type(last_3rad_calculated) == type(False):
+                    redo_3rad = not last_3rad_calculated
+                else:
+                    partial_3rad = True
+            elif flags[0] == 2 and len(flags) == 6: # type: ignore
                 resort = False
                 redo_transitions = True
                 
-                _, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated = flags # type: ignore
+                _, last_rad_calculated, last_aug_calculated, last_shakeoff_calculated, last_sat_auger_calculated, last_3rad_calculated = flags # type: ignore
                 
                 if type(last_rad_calculated) == type(False):
                     redo_rad = True
@@ -6165,7 +6380,12 @@ if __name__ == "__main__":
                     redo_shakeup = True
                 else:
                     partial_shakeup = True
-            elif flags[0] == 3 and len(flags) < 6: # type: ignore
+                
+                if type(last_3rad_calculated) == type(False):
+                    redo_3rad = not last_3rad_calculated
+                else:
+                    partial_3rad = True
+            elif flags[0] == 3 and len(flags) == 5: # type: ignore
                 resort = False
                 redo_transitions = True
                 
@@ -6190,7 +6410,7 @@ if __name__ == "__main__":
                     redo_shakeup = not last_shakeup_calculated
                 else:
                     partial_shakeup = True
-            elif flags[0] == 4 and len(flags) < 4: # type: ignore
+            elif flags[0] == 4 and len(flags) == 3: # type: ignore
                 resort = False
                 redo_transitions = True
                 
@@ -6304,6 +6524,7 @@ if __name__ == "__main__":
         redo_sat = True
         redo_shakeup = True
         redo_sat_aug = True
+        redo_3rad = True
     
     
     if resort:
@@ -6318,6 +6539,7 @@ if __name__ == "__main__":
             redo_sat = True
             redo_shakeup = True
             redo_sat_aug = True
+            redo_3rad = True
     
     
     # Currently supported calculation types:
@@ -6347,6 +6569,11 @@ if __name__ == "__main__":
                 satellite_done = True
                 
                 if calculate_3holes:
+                    rates(calculated3holesStates, calculated3RadiativeTransitions, \
+                                "3radiative", "3holes", file_calculated_3radiative, file_rates_3radiative, "Radiative 3-hole", \
+                                str(int(nelectrons) - 2))
+                    rad3_done = True
+                    
                     rates_auger(calculated2holesStates, calculated3holesStates, calculatedSatelliteAugerTransitions, \
                                 "sat_auger", "auger", "3holes", file_calculated_sat_auger, file_rates_sat_auger, "Satellite Auger", \
                                 str(int(nelectrons) - 1), str(int(nelectrons) - 2)) # type: ignore
@@ -6385,6 +6612,8 @@ if __name__ == "__main__":
                     "radiative", "radiative", file_calculated_radiative, file_rates, "Radiative", \
                     nelectrons, False, last_rad_calculated) # type: ignore
                 radiative_done = True
+            else:
+                readRates(file_rates, "Radiative", shell_array, calculatedRadiativeTransitions)
             
             if redo_aug:
                 rates_auger(calculated1holeStates, calculated2holesStates, calculatedAugerTransitions, \
@@ -6396,6 +6625,8 @@ if __name__ == "__main__":
                             "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
                             nelectrons, str(int(nelectrons) - 1), last_aug_calculated) # type: ignore
                 auger_done = True
+            else:
+                readRates(file_rates_auger, "Auger", shell_array, calculatedAugerTransitions, shell_array_2holes)
             
             if type_calc == "All" or type_calc == "rates_all":
                 if redo_sat:
@@ -6408,6 +6639,21 @@ if __name__ == "__main__":
                         "satellites", "auger", file_calculated_shakeoff, file_rates_shakeoff, "Satellite", \
                         str(int(nelectrons) - 1), False, last_shakeoff_calculated) # type: ignore
                     satellite_done = True
+                else:
+                    readRates(file_rates_shakeoff, "Satellite", shell_array_2holes, calculatedSatelliteTransitions)
+                
+                if redo_3rad:
+                    rates(calculated3holesStates, calculated3RadiativeTransitions, \
+                        "3radiative", "3holes", file_calculated_3radiative, file_rates_3radiative, "Radiative 3-holes", \
+                        str(int(nelectrons) - 2))
+                    rad3_done = True
+                elif partial_3rad:
+                    rates(calculated3holesStates, calculated3RadiativeTransitions, \
+                        "3radiative", "3holes", file_calculated_3radiative, file_rates_3radiative, "Radiative 3-holes", \
+                        str(int(nelectrons) - 2), False, last_3rad_calculated) # type: ignore
+                    rad3_done = True
+                else:
+                    readRates(file_rates_3radiative, "Radiative 3-holes", shell_array_3holes, calculated3RadiativeTransitions)
                 
                 if redo_sat_aug:
                     rates_auger(calculated2holesStates, calculated3holesStates, calculatedSatelliteAugerTransitions, \
@@ -6419,6 +6665,8 @@ if __name__ == "__main__":
                                 "sat_auger", "auger", "3holes", file_calculated_sat_auger, file_rates_sat_auger, "Satellite Auger", \
                                 str(int(nelectrons) - 1), str(int(nelectrons) - 2), last_sat_auger_calculated) # type: ignore
                     sat_aug_done = True
+                else:
+                    readRates(file_rates_sat_auger, "Satellite Auger", shell_array_2holes, calculatedSatelliteAugerTransitions, shell_array_3holes)
                 
                 if redo_shakeup:
                     rates(calculatedShakeupStates, calculatedShakeupTransitions, \
@@ -6430,6 +6678,8 @@ if __name__ == "__main__":
                         "shakeup", "shakeup", file_calculated_shakeup, file_rates_shakeup, "Shake-up", \
                         nelectrons, True, last_shakeup_calculated) # type: ignore
                     shakeup_done = True
+                else:
+                    readRates(file_rates_shakeup, "Shake-up", shell_array_shakeup, calculatedShakeupTransitions)
         else:
             if redo_rad:
                 rates(calculated1holeStates, calculatedRadiativeTransitions, \
@@ -6441,6 +6691,8 @@ if __name__ == "__main__":
                     "radiative", "radiative", file_calculated_radiative, file_rates, "Radiative", \
                     str(int(nelectrons) + 1), False, last_rad_calculated) # type: ignore
                 radiative_done = True
+            else:
+                readRates(file_rates, "Radiative", shell_array, calculatedRadiativeTransitions)
             
             if redo_aug:
                 rates_auger(calculated1holeStates, calculated2holesStates, calculatedAugerTransitions, \
@@ -6452,8 +6704,11 @@ if __name__ == "__main__":
                             "auger", "radiative", "auger", file_calculated_auger, file_rates_auger, "Auger", \
                             str(int(nelectrons) + 1), nelectrons, last_aug_calculated) # type: ignore
                 auger_done = True
+            else:
+                readRates(file_rates_auger, "Auger", shell_array, calculatedAugerTransitions, shell_array_2holes)
+            
 
 
     
     if type_calc == "All" or type_calc == "Simple" or type_calc == "Excitation":
-        calculateSpectra(radiative_done, auger_done, satellite_done, sat_aug_done, shakeup_done)
+        calculateSpectra(radiative_done, auger_done, satellite_done, sat_aug_done, rad3_done, shakeup_done)
